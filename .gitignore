@@ -1,0 +1,31 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Python Cache & Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Data & CSV files
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+*.lock
+backtest_results.json
+
+# Environment & Secrets
+.env
+.env.local
+
+# Dashboard Frontend
+dashboard/frontend/node_modules/
+dashboard/frontend/dist/
+dashboard/frontend/build/
+
+# Logs
+logs/
+*.log

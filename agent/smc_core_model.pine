@@ -1,0 +1,452 @@
+//@version=6
+indicator("SMC Core Module v2 - Structure / Liquidity / OB / FVG", overlay=true,
+     max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+
+// =============================================================================
+// SMC CORE MODULE — v2
+// Covers: Market Structure (BOS/CHoCH/HH-HL-LH-LL), Liquidity (EQH/EQL/Sweeps),
+//         Order Blocks (Bullish/Bearish + Mitigation), Fair Value Gaps (FVG)
+// Non-repainting note: swing points confirm `swingLength` bars after they form
+// (standard pivot behaviour). BOS/CHoCH/OB/FVG all key off CONFIRMED bars.
+//
+// CHANGELOG vs v1 (fixes verified against a live chart screenshot):
+//  1. FIXED: "Sweep" labels firing repeatedly on consecutive bars at the same
+//     level (was spamming stacked "Sweep Sweep Sweep" text). Now gated by a
+//     swept-flag that resets only when the level is broken or replaced.
+//  2. FIXED: the "active" structural high/low used to reset to *every* new
+//     pivot, even a weaker one, silently discarding a still-unbroken higher
+//     high / lower low. Now it only updates when there's no active level,
+//     the old one already broke, or the new pivot is genuinely more extreme.
+//     (This was the root cause behind #1 firing so often.)
+//  3. FIXED: unmitigated OB / unfilled FVG boxes extended to the current bar
+//     forever, so an old untouched zone slowly grew into a chart-spanning
+//     horizontal band (visible as the big red band across the whole chart).
+//     Added a max-age-in-bars input; boxes past it are deleted instead of
+//     stretched.
+//  4. FIXED: OB "too tall" filter compared the candle's range against
+//     *today's* ATR instead of the ATR at the time that candle formed.
+//  5. ADDED: optional "ignore direction" overlap check for OB/FVG so bull and
+//     bear zones stop stacking into a single solid-looking block.
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// INPUTS
+// -----------------------------------------------------------------------------
+grpMS = "1. Market Structure"
+swingLength      = input.int(5, "Swing Lookback (Left/Right Bars)", minval=1, group=grpMS)
+showBOS          = input.bool(true, "Show BOS", group=grpMS)
+showCHoCH        = input.bool(true, "Show CHoCH", group=grpMS)
+showSwingLabels  = input.bool(true, "Show HH / HL / LH / LL Labels", group=grpMS)
+bullColorMS      = input.color(color.new(color.teal, 0), "Bullish Structure Color", group=grpMS)
+bearColorMS      = input.color(color.new(color.red, 0), "Bearish Structure Color", group=grpMS)
+bosLineStyleIn   = input.string("Dashed", "BOS/CHoCH Line Style", options=["Solid", "Dashed", "Dotted"], group=grpMS)
+maxStructureObjs = input.int(50, "Max Structure Lines/Labels to Keep", minval=5, group=grpMS)
+labelSizeIn      = input.string("Small", "Label Text Size", options=["Tiny", "Small", "Normal", "Large"], group=grpMS)
+labelOffsetATR   = input.float(0.30, "Label Offset From Price (x ATR)", minval=0, step=0.05, group=grpMS, tooltip="Pushes labels away from candle wicks so text doesn't sit on top of the bar.")
+
+grpLQ = "2. Liquidity"
+showEQHEQL       = input.bool(true, "Show Equal Highs / Equal Lows", group=grpLQ)
+eqTolMode        = input.string("ATR", "EQH/EQL Tolerance Mode", options=["ATR", "Percent"], group=grpLQ, tooltip="ATR mode scales with volatility/timeframe, which prevents almost every swing being tagged 'equal' on low timeframes.")
+eqAtrMult        = input.float(0.15, "Tolerance (x ATR)", minval=0.01, step=0.01, group=grpLQ)
+eqTolerancePct   = input.float(0.03, "Tolerance (%)", minval=0.01, step=0.01, group=grpLQ)
+minEqSeparation  = input.int(10, "Min Bars Between EQH/EQL Draws", minval=1, group=grpLQ, tooltip="Prevents the same liquidity level from being re-labeled over and over.")
+showSweeps       = input.bool(true, "Show Liquidity Sweeps", group=grpLQ)
+liqColor         = input.color(color.new(color.orange, 0), "Liquidity Color", group=grpLQ)
+sweepColor       = input.color(color.new(color.yellow, 0), "Sweep Marker Color", group=grpLQ)
+maxLiqObjs       = input.int(30, "Max Liquidity Lines/Labels to Keep", minval=5, group=grpLQ)
+
+grpOB = "3. Order Blocks"
+showBullOB       = input.bool(true, "Show Bullish OB", group=grpOB)
+showBearOB       = input.bool(true, "Show Bearish OB", group=grpOB)
+obLookback       = input.int(15, "OB Search Lookback (bars before break)", minval=3, maxval=50, group=grpOB)
+obMitigationMode = input.string("Wick", "Mitigation Method", options=["Wick", "Close"], group=grpOB)
+obSkipOverlap    = input.bool(true, "Skip New OB if Overlapping an Active One", group=grpOB, tooltip="Stops boxes from stacking on top of each other in the same zone.")
+obOverlapAnyDir  = input.bool(false, "Overlap Check Ignores Bull/Bear Direction", group=grpOB, tooltip="When on, a new OB is also skipped if it overlaps an opposite-direction OB. Reduces stacked bull+bear clutter in ranges.")
+maxOBHeightATR   = input.float(6.0, "Max OB Height (x ATR, 0 = off)", minval=0, step=0.5, group=grpOB, tooltip="Filters out oversized blocks from spike candles that would dominate the chart.")
+obMaxAgeBars     = input.int(300, "Max Bars to Extend Unmitigated OB (0 = unlimited)", minval=0, group=grpOB, tooltip="Stops very old unmitigated order blocks from stretching into a giant horizontal band across the whole chart.")
+bullOBColor      = input.color(color.new(color.teal, 85), "Bullish OB Color", group=grpOB)
+bearOBColor      = input.color(color.new(color.red, 85), "Bearish OB Color", group=grpOB)
+mitigatedOBColor = input.color(color.new(color.gray, 92), "Mitigated OB Color", group=grpOB)
+maxOB            = input.int(20, "Max Order Blocks to Keep", minval=1, group=grpOB)
+
+grpFVG = "4. Fair Value Gaps"
+showFVG        = input.bool(true, "Show FVG", group=grpFVG)
+fvgOnlyUnfill  = input.bool(false, "Only Show Unfilled FVGs", group=grpFVG)
+minFVGSizeATR  = input.float(0.15, "Min FVG Size (x ATR, 0 = off)", minval=0, step=0.05, group=grpFVG, tooltip="Filters out tiny noise gaps, which are what usually spam low timeframes with boxes.")
+fvgSkipOverlap = input.bool(true, "Skip New FVG if Overlapping an Active One", group=grpFVG)
+fvgOverlapAnyDir = input.bool(false, "Overlap Check Ignores Bull/Bear Direction", group=grpFVG, tooltip="When on, a new FVG is also skipped if it overlaps an opposite-direction FVG.")
+fvgMaxAgeBars  = input.int(300, "Max Bars to Extend Unfilled FVG (0 = unlimited)", minval=0, group=grpFVG, tooltip="Stops very old unfilled FVGs from stretching into a giant horizontal band across the whole chart.")
+bullFVGColor   = input.color(color.new(color.blue, 85), "Bullish FVG Color", group=grpFVG)
+bearFVGColor   = input.color(color.new(color.purple, 85), "Bearish FVG Color", group=grpFVG)
+filledFVGColor = input.color(color.new(color.gray, 93), "Filled FVG Color", group=grpFVG)
+maxFVG         = input.int(20, "Max FVGs to Keep", minval=1, group=grpFVG)
+
+// -----------------------------------------------------------------------------
+// SHARED HELPERS
+// -----------------------------------------------------------------------------
+bosStyle = bosLineStyleIn == "Solid" ? line.style_solid : bosLineStyleIn == "Dotted" ? line.style_dotted : line.style_dashed
+lblSize  = labelSizeIn == "Tiny" ? size.tiny : labelSizeIn == "Normal" ? size.normal : labelSizeIn == "Large" ? size.large : size.small
+atr      = ta.atr(14)
+lblOffset = atr * labelOffsetATR
+
+// generic trim helpers so drawing-object counts stay bounded
+f_trimLines(arr, maxCount) =>
+    if array.size(arr) > maxCount
+        line.delete(array.shift(arr))
+
+f_trimLabels(arr, maxCount) =>
+    if array.size(arr) > maxCount
+        label.delete(array.shift(arr))
+
+// -----------------------------------------------------------------------------
+// TYPES
+// -----------------------------------------------------------------------------
+type OrderBlock
+    box   b
+    float top
+    float bottom
+    bool  isBull
+    bool  mitigated
+    int   leftBar
+
+type FVGZone
+    box   b
+    float top
+    float bottom
+    bool  isBull
+    bool  filled
+    int   leftBar
+
+var array<line>  structureLines  = array.new<line>()
+var array<label> structureLabels = array.new<label>()
+var array<line>  liqLines        = array.new<line>()
+var array<label> liqLabels       = array.new<label>()
+var array<OrderBlock> obList     = array.new<OrderBlock>()
+var array<FVGZone>    fvgList    = array.new<FVGZone>()
+
+// true if [top,bottom] overlaps any active (unmitigated) box — same direction only,
+// unless obOverlapAnyDir is on
+f_overlapsOB(top, bottom, isBull, anyDir) =>
+    bool found = false
+    if array.size(obList) > 0
+        for i = 0 to array.size(obList) - 1
+            ob = array.get(obList, i)
+            dirMatch = anyDir or ob.isBull == isBull
+            if not ob.mitigated and dirMatch and top >= ob.bottom and bottom <= ob.top
+                found := true
+    found
+
+f_overlapsFVG(top, bottom, isBull, anyDir) =>
+    bool found = false
+    if array.size(fvgList) > 0
+        for i = 0 to array.size(fvgList) - 1
+            fvg = array.get(fvgList, i)
+            dirMatch = anyDir or fvg.isBull == isBull
+            if not fvg.filled and dirMatch and top >= fvg.bottom and bottom <= fvg.top
+                found := true
+    found
+
+// -----------------------------------------------------------------------------
+// SECTION 1 — MARKET STRUCTURE (swings, HH/HL/LH/LL, BOS, CHoCH)
+// -----------------------------------------------------------------------------
+ph = ta.pivothigh(swingLength, swingLength)
+pl = ta.pivotlow(swingLength, swingLength)
+
+var float lastSH  = na   // most recent confirmed pivot high value (for HH/LH classification + EQH)
+var int   lastSHBar = na
+var float prevSH  = na
+
+var float lastSL  = na   // most recent confirmed pivot low value (for HL/LL classification + EQL)
+var int   lastSLBar = na
+var float prevSL  = na
+
+// "active" structural level = the untouched high/low actually used for BOS/CHoCH/Sweep.
+// Kept separate from lastSH/lastSL so a minor pivot can't silently replace a bigger,
+// still-unbroken high/low.
+var float swingHighLevel   = na
+var int   swingHighBar     = na
+var bool  swingHighCrossed = true
+var bool  swingHighSwept   = false   // NEW: gates repeat "Sweep" firing at the same level
+
+var float swingLowLevel    = na
+var int   swingLowBar      = na
+var bool  swingLowCrossed  = true
+var bool  swingLowSwept    = false   // NEW
+
+var string trend = "neutral"      // "bullish" / "bearish" / "neutral"
+var int lastEQHBar = na
+var int lastEQLBar = na
+
+// --- new pivot high formed ---
+if not na(ph)
+    pivotBarIdx = bar_index - swingLength
+    prevSH := lastSH
+    lastSH := ph
+    lastSHBar := pivotBarIdx
+
+    if showSwingLabels and not na(prevSH)
+        tagTxt = ph > prevSH ? "HH" : "LH"
+        lbl = label.new(pivotBarIdx, ph + lblOffset, tagTxt, style=label.style_label_down,
+             color=color.new(color.white, 100), textcolor=ph > prevSH ? bullColorMS : bearColorMS, size=lblSize)
+        array.push(structureLabels, lbl)
+        f_trimLabels(structureLabels, maxStructureObjs)
+
+    // Equal Highs check against the previous pivot high, ATR-scaled by default so
+    // low timeframes don't tag almost every swing as "equal"
+    if showEQHEQL and not na(prevSH)
+        eqTol = eqTolMode == "ATR" ? atr * eqAtrMult : prevSH * eqTolerancePct / 100
+        farEnough = na(lastEQHBar) or (pivotBarIdx - lastEQHBar) >= minEqSeparation
+        if math.abs(ph - prevSH) <= eqTol and farEnough
+            eqLine = line.new(lastSHBar, ph, pivotBarIdx, ph, color=liqColor, style=line.style_dashed, width=1)
+            eqLbl  = label.new(pivotBarIdx, ph + lblOffset, "EQH", style=label.style_label_down,
+                 color=color.new(color.white, 100), textcolor=liqColor, size=lblSize)
+            array.push(liqLines, eqLine)
+            array.push(liqLabels, eqLbl)
+            f_trimLines(liqLines, maxLiqObjs)
+            f_trimLabels(liqLabels, maxLiqObjs)
+            lastEQHBar := pivotBarIdx
+
+    // FIX #2: only promote this pivot to the ACTIVE structural high if there's no
+    // active level yet, the old one already broke, or this pivot is a new extreme.
+    if na(swingHighLevel) or swingHighCrossed or ph > swingHighLevel
+        swingHighLevel := ph
+        swingHighBar := pivotBarIdx
+        swingHighCrossed := false
+        swingHighSwept := false
+
+// --- new pivot low formed ---
+if not na(pl)
+    pivotBarIdx = bar_index - swingLength
+    prevSL := lastSL
+    lastSL := pl
+    lastSLBar := pivotBarIdx
+
+    if showSwingLabels and not na(prevSL)
+        tagTxt = pl > prevSL ? "HL" : "LL"
+        lbl = label.new(pivotBarIdx, pl - lblOffset, tagTxt, style=label.style_label_up,
+             color=color.new(color.white, 100), textcolor=pl > prevSL ? bullColorMS : bearColorMS, size=lblSize)
+        array.push(structureLabels, lbl)
+        f_trimLabels(structureLabels, maxStructureObjs)
+
+    if showEQHEQL and not na(prevSL)
+        eqTol = eqTolMode == "ATR" ? atr * eqAtrMult : prevSL * eqTolerancePct / 100
+        farEnough = na(lastEQLBar) or (pivotBarIdx - lastEQLBar) >= minEqSeparation
+        if math.abs(pl - prevSL) <= eqTol and farEnough
+            eqLine = line.new(lastSLBar, pl, pivotBarIdx, pl, color=liqColor, style=line.style_dashed, width=1)
+            eqLbl  = label.new(pivotBarIdx, pl - lblOffset, "EQL", style=label.style_label_up,
+                 color=color.new(color.white, 100), textcolor=liqColor, size=lblSize)
+            array.push(liqLines, eqLine)
+            array.push(liqLabels, eqLbl)
+            f_trimLines(liqLines, maxLiqObjs)
+            f_trimLabels(liqLabels, maxLiqObjs)
+            lastEQLBar := pivotBarIdx
+
+    // FIX #2 (mirror): only promote to ACTIVE structural low under the same conditions
+    if na(swingLowLevel) or swingLowCrossed or pl < swingLowLevel
+        swingLowLevel := pl
+        swingLowBar := pivotBarIdx
+        swingLowCrossed := false
+        swingLowSwept := false
+
+// --- BOS / CHoCH detection on confirmed bar closes ---
+bullBreak = barstate.isconfirmed and not swingHighCrossed and not na(swingHighLevel) and close > swingHighLevel
+bearBreak = barstate.isconfirmed and not swingLowCrossed and not na(swingLowLevel) and close < swingLowLevel
+
+isBullCHoCH = bullBreak and trend == "bearish"
+isBullBOS   = bullBreak and trend != "bearish"
+isBearCHoCH = bearBreak and trend == "bullish"
+isBearBOS   = bearBreak and trend != "bullish"
+
+if bullBreak
+    swingHighCrossed := true
+    tagTxt = isBullCHoCH ? "CHoCH" : "BOS"
+    doDraw = isBullCHoCH ? showCHoCH : showBOS
+    if doDraw
+        ln = line.new(swingHighBar, swingHighLevel, bar_index, swingHighLevel, color=bullColorMS, style=bosStyle, width=1)
+        lb = label.new(bar_index, swingHighLevel + lblOffset, tagTxt, style=label.style_label_down,
+             color=color.new(color.white, 100), textcolor=bullColorMS, size=lblSize)
+        array.push(structureLines, ln)
+        array.push(structureLabels, lb)
+        f_trimLines(structureLines, maxStructureObjs)
+        f_trimLabels(structureLabels, maxStructureObjs)
+    trend := "bullish"
+    alert("Bullish " + tagTxt, alert.freq_once_per_bar_close)
+
+if bearBreak
+    swingLowCrossed := true
+    tagTxt = isBearCHoCH ? "CHoCH" : "BOS"
+    doDraw = isBearCHoCH ? showCHoCH : showBOS
+    if doDraw
+        ln = line.new(swingLowBar, swingLowLevel, bar_index, swingLowLevel, color=bearColorMS, style=bosStyle, width=1)
+        lb = label.new(bar_index, swingLowLevel - lblOffset, tagTxt, style=label.style_label_up,
+             color=color.new(color.white, 100), textcolor=bearColorMS, size=lblSize)
+        array.push(structureLines, ln)
+        array.push(structureLabels, lb)
+        f_trimLines(structureLines, maxStructureObjs)
+        f_trimLabels(structureLabels, maxStructureObjs)
+    trend := "bearish"
+    alert("Bearish " + tagTxt, alert.freq_once_per_bar_close)
+
+// -----------------------------------------------------------------------------
+// SECTION 2 — LIQUIDITY SWEEPS
+// -----------------------------------------------------------------------------
+if showSweeps and barstate.isconfirmed
+    // bearish sweep: wick pierces the active swing high but closes back below it
+    // FIX #1: gated by swingHighSwept so it can only fire once per active level
+    if not na(swingHighLevel) and high > swingHighLevel and close < swingHighLevel and not swingHighCrossed and not swingHighSwept
+        sLbl = label.new(bar_index, high + lblOffset, "Sweep", style=label.style_label_down,
+             color=color.new(color.white, 100), textcolor=sweepColor, size=lblSize)
+        array.push(liqLabels, sLbl)
+        f_trimLabels(liqLabels, maxLiqObjs)
+        swingHighSwept := true
+        alert("Liquidity Sweep (Highs)", alert.freq_once_per_bar_close)
+
+    // bullish sweep: wick pierces the active swing low but closes back above it
+    if not na(swingLowLevel) and low < swingLowLevel and close > swingLowLevel and not swingLowCrossed and not swingLowSwept
+        sLbl = label.new(bar_index, low - lblOffset, "Sweep", style=label.style_label_up,
+             color=color.new(color.white, 100), textcolor=sweepColor, size=lblSize)
+        array.push(liqLabels, sLbl)
+        f_trimLabels(liqLabels, maxLiqObjs)
+        swingLowSwept := true
+        alert("Liquidity Sweep (Lows)", alert.freq_once_per_bar_close)
+
+// -----------------------------------------------------------------------------
+// SECTION 3 — ORDER BLOCKS
+// -----------------------------------------------------------------------------
+// finds the index (bars back) of the last opposite-colored candle before a break
+f_findOBCandle(bullish, lookback) =>
+    int foundIdx = -1
+    if bullish
+        for i = 1 to lookback
+            if close[i] < open[i] and foundIdx == -1
+                foundIdx := i
+    else
+        for i = 1 to lookback
+            if close[i] > open[i] and foundIdx == -1
+                foundIdx := i
+    foundIdx
+
+if bullBreak and showBullOB
+    idx = f_findOBCandle(true, obLookback)
+    if idx != -1
+        obTop = high[idx]
+        obBottom = low[idx]
+        // FIX #4: compare against the ATR at the time the candle formed, not today's ATR
+        tooTall = maxOBHeightATR > 0 and (obTop - obBottom) > atr[idx] * maxOBHeightATR
+        overlapping = obSkipOverlap and f_overlapsOB(obTop, obBottom, true, obOverlapAnyDir)
+        if not tooTall and not overlapping
+            obBox = box.new(bar_index[idx], obTop, bar_index, obBottom,
+                 border_color=bullOBColor, bgcolor=bullOBColor, extend=extend.none, text="OB", text_size=lblSize, text_color=bullOBColor)
+            newOB = OrderBlock.new(obBox, obTop, obBottom, true, false, bar_index[idx])
+            array.push(obList, newOB)
+            if array.size(obList) > maxOB
+                oldest = array.shift(obList)
+                box.delete(oldest.b)
+            alert("New Bullish Order Block", alert.freq_once_per_bar_close)
+
+if bearBreak and showBearOB
+    idx = f_findOBCandle(false, obLookback)
+    if idx != -1
+        obTop = high[idx]
+        obBottom = low[idx]
+        tooTall = maxOBHeightATR > 0 and (obTop - obBottom) > atr[idx] * maxOBHeightATR
+        overlapping = obSkipOverlap and f_overlapsOB(obTop, obBottom, false, obOverlapAnyDir)
+        if not tooTall and not overlapping
+            obBox = box.new(bar_index[idx], obTop, bar_index, obBottom,
+                 border_color=bearOBColor, bgcolor=bearOBColor, extend=extend.none, text="OB", text_size=lblSize, text_color=bearOBColor)
+            newOB = OrderBlock.new(obBox, obTop, obBottom, false, false, bar_index[idx])
+            array.push(obList, newOB)
+            if array.size(obList) > maxOB
+                oldest = array.shift(obList)
+                box.delete(oldest.b)
+            alert("New Bearish Order Block", alert.freq_once_per_bar_close)
+
+// extend unmitigated OBs to current bar, check mitigation, expire stale ones
+// FIX #3: iterate backward so aged-out boxes can be safely removed from the array
+if array.size(obList) > 0
+    for i = array.size(obList) - 1 to 0
+        ob = array.get(obList, i)
+        if not ob.mitigated
+            aged = obMaxAgeBars > 0 and (bar_index - ob.leftBar) > obMaxAgeBars
+            if aged
+                box.delete(ob.b)
+                array.remove(obList, i)
+            else
+                box.set_right(ob.b, bar_index)
+                touchedTop    = obMitigationMode == "Wick" ? high : close
+                touchedBottom = obMitigationMode == "Wick" ? low  : close
+                if ob.isBull and touchedBottom <= ob.top and close < ob.top
+                    ob.mitigated := true
+                    box.set_bgcolor(ob.b, mitigatedOBColor)
+                    box.set_border_color(ob.b, mitigatedOBColor)
+                if not ob.isBull and touchedTop >= ob.bottom and close > ob.bottom
+                    ob.mitigated := true
+                    box.set_bgcolor(ob.b, mitigatedOBColor)
+                    box.set_border_color(ob.b, mitigatedOBColor)
+
+// -----------------------------------------------------------------------------
+// SECTION 4 — FAIR VALUE GAPS (FVG)
+// -----------------------------------------------------------------------------
+if showFVG and barstate.isconfirmed
+    // bullish FVG: gap between high two bars ago and low of current bar
+    if high[2] < low
+        top = low
+        bottom = high[2]
+        bigEnough = (top - bottom) >= atr * minFVGSizeATR
+        overlapping = fvgSkipOverlap and f_overlapsFVG(top, bottom, true, fvgOverlapAnyDir)
+        if bigEnough and not overlapping
+            fBox = box.new(bar_index[2], top, bar_index, bottom,
+                 border_color=bullFVGColor, bgcolor=bullFVGColor, extend=extend.none, text="FVG", text_size=lblSize, text_color=bullFVGColor)
+            newFVG = FVGZone.new(fBox, top, bottom, true, false, bar_index[2])
+            array.push(fvgList, newFVG)
+            if array.size(fvgList) > maxFVG
+                oldest = array.shift(fvgList)
+                box.delete(oldest.b)
+            alert("New Bullish FVG", alert.freq_once_per_bar_close)
+
+    // bearish FVG: gap between low two bars ago and high of current bar
+    if low[2] > high
+        top = low[2]
+        bottom = high
+        bigEnough = (top - bottom) >= atr * minFVGSizeATR
+        overlapping = fvgSkipOverlap and f_overlapsFVG(top, bottom, false, fvgOverlapAnyDir)
+        if bigEnough and not overlapping
+            fBox = box.new(bar_index[2], top, bar_index, bottom,
+                 border_color=bearFVGColor, bgcolor=bearFVGColor, extend=extend.none, text="FVG", text_size=lblSize, text_color=bearFVGColor)
+            newFVG = FVGZone.new(fBox, top, bottom, false, false, bar_index[2])
+            array.push(fvgList, newFVG)
+            if array.size(fvgList) > maxFVG
+                oldest = array.shift(fvgList)
+                box.delete(oldest.b)
+            alert("New Bearish FVG", alert.freq_once_per_bar_close)
+
+// extend + fill-check for existing FVGs, expire stale ones
+if array.size(fvgList) > 0
+    for i = array.size(fvgList) - 1 to 0
+        fvg = array.get(fvgList, i)
+        aged = fvgMaxAgeBars > 0 and not fvg.filled and (bar_index - fvg.leftBar) > fvgMaxAgeBars
+        if aged
+            box.delete(fvg.b)
+            array.remove(fvgList, i)
+        else
+            if not fvg.filled
+                box.set_right(fvg.b, bar_index)
+                if fvg.isBull and low <= fvg.bottom
+                    fvg.filled := true
+                    box.set_bgcolor(fvg.b, filledFVGColor)
+                    box.set_border_color(fvg.b, filledFVGColor)
+                if not fvg.isBull and high >= fvg.top
+                    fvg.filled := true
+                    box.set_bgcolor(fvg.b, filledFVGColor)
+                    box.set_border_color(fvg.b, filledFVGColor)
+            if fvgOnlyUnfill and fvg.filled
+                box.delete(fvg.b)
+                array.remove(fvgList, i)
+
+// -----------------------------------------------------------------------------
+// ALERT CONDITIONS (static, so they're selectable individually in the Create Alert dialog)
+// -----------------------------------------------------------------------------
+alertcondition(bullBreak and not isBullCHoCH, title="Bullish BOS", message="Bullish BOS detected")
+alertcondition(bearBreak and not isBearCHoCH, title="Bearish BOS", message="Bearish BOS detected")
+alertcondition(isBullCHoCH, title="Bullish CHoCH", message="Bullish CHoCH detected")
+alertcondition(isBearCHoCH, title="Bearish CHoCH", message="Bearish CHoCH detected")
