@@ -109,7 +109,7 @@ def main():
         max_open_trades=1,
         spread_pips=2.0,
         min_rr_ratio=1.5,
-        confluence_threshold=0.55,
+        confluence_threshold=0.45,
         use_partial_exits=True,
     )
 

@@ -42,7 +42,7 @@ class BacktestConfig:
     commission_per_lot: float = 0.0
     lot_size: float = 0.01
     min_rr_ratio: float = 1.5
-    confluence_threshold: float = 0.65
+    confluence_threshold: float = 0.45
     min_bars_between_trades: int = 5       # Prevent overtrading
     use_partial_exits: bool = True         # TP1/TP2/TP3 partial scaling
 
