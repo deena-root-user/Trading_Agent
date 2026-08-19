@@ -434,22 +434,31 @@ class StrategyEngine:
         fvg_key = "active_bullish_fvgs" if is_bull else "active_bearish_fvgs"
         ob_key = "active_bullish_obs" if is_bull else "active_bearish_obs"
 
-        has_4h_zone = len(smc_4h.get(ob_key, [])) > 0 or len(smc_4h.get(fvg_key, [])) > 0
-        has_1h_zone = len(smc_1h.get(ob_key, [])) > 0 or len(smc_1h.get(fvg_key, [])) > 0 or len(smc_15m.get(ob_key, [])) > 0
+        zones_4h = smc_4h.get(ob_key, []) + smc_4h.get(fvg_key, [])
+        zones_1h = smc_1h.get(ob_key, []) + smc_1h.get(fvg_key, []) + smc_15m.get(ob_key, [])
+        all_zones = zones_4h + zones_1h
+
+        has_4h_zone = len(zones_4h) > 0
+        has_1h_zone = len(zones_1h) > 0
+
+        at_poi_zone = any(
+            z.get("price_is_inside", False) or z.get("distance_points", 999) < 25.0
+            for z in all_zones
+        ) or (len(all_zones) > 0 and (has_4h_zone or has_1h_zone))
 
         breaks_15m = smc_15m.get("recent_breaks", []) + smc_1h.get("recent_breaks", [])
         confirmation_15m = any(
             b.get("direction") == expected and b.get("bars_ago", 999) <= 30
             for b in breaks_15m
-        ) or len(breaks_15m) > 0
+        )
 
         return [
             StrategyCondition("4H_TREND_CLEAR", trend_4h in (expected, "NEUTRAL"), weight=1.5),
             StrategyCondition("1H_TREND_ALIGNED", trend_1h in (expected, "NEUTRAL"), weight=1.5),
             StrategyCondition("4H_ACTIVE_ZONE", has_4h_zone or has_1h_zone, weight=2.0, detail="Active 4H/1H OB or FVG"),
-            StrategyCondition("1H_ACTIVE_ZONE", has_1h_zone, weight=1.5, detail="Active 1H/15M OB or FVG"),
+            StrategyCondition("AT_POI_ZONE", at_poi_zone, weight=2.0, detail="Price at or near active POI zone"),
             StrategyCondition("15M_CONFIRMATION", confirmation_15m, weight=1.5,
-                              detail="Structure break confirmation"),
+                              detail="Structure break confirmation in trade direction"),
             StrategyCondition("VALID_PREMIUM_DISCOUNT", premium_discount_4h in (
                 "DISCOUNT" if is_bull else "PREMIUM", "EQUILIBRIUM", "NEUTRAL"), weight=1.0),
         ]
