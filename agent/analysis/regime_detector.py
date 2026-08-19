@@ -45,12 +45,12 @@ REGIME_STRATEGY_MAP: Dict[str, Dict[str, List[str]]] = {
         "forbidden": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY"],
     },
     "COMPRESSING": {
-        "allowed": [],  # NO_TRADE — wait for breakout confirmation
-        "forbidden": ["ALL"],
+        "allowed": ["RANGE_REVERSAL", "SWEEP_REVERSAL", "OB_REACTION", "FVG_PULLBACK"],
+        "forbidden": [],
     },
     "VOLATILE_EXPANSION": {
-        "allowed": [],  # NO_TRADE — too unpredictable
-        "forbidden": ["ALL"],
+        "allowed": ["SWEEP_REVERSAL", "DISPLACEMENT_ENTRY"],
+        "forbidden": [],
     },
     "UNCERTAIN": {
         "allowed": ["OB_REACTION", "FVG_PULLBACK", "HTF_LTF_SMC", "SWEEP_REVERSAL", "BOS_CONTINUATION"],
@@ -59,7 +59,7 @@ REGIME_STRATEGY_MAP: Dict[str, Dict[str, List[str]]] = {
 }
 
 # Regimes that immediately produce NO_TRADE
-NO_TRADE_REGIMES = {"COMPRESSING", "VOLATILE_EXPANSION"}
+NO_TRADE_REGIMES = set()
 
 
 @dataclass

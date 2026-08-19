@@ -105,10 +105,11 @@ class IndicatorSnapshot:
     smc_ob_top: float = 0.0
     smc_ob_bottom: float = 0.0
     smc_market_structure: str = "NEUTRAL" # "BOS_BULLISH" | "BOS_BEARISH" | "CHOCH_BULLISH" | "CHOCH_BEARISH" | "NEUTRAL"
+    smc_full_dict: dict = field(default_factory=dict)
 
     def to_prompt_dict(self) -> dict:
         """Return a clean dict suitable for injection into LLM prompt."""
-        return {
+        res = {
             "symbol": self.symbol,
             "timeframe": self.timeframe,
             "timestamp": str(self.timestamp),
@@ -175,6 +176,7 @@ class IndicatorSnapshot:
                     "bottom": round(self.smc_ob_bottom, 5),
                 },
                 "structure": self.smc_market_structure,
+                "smc_engine_details": self.smc_full_dict,
             },
             "atr_14": {
                 "raw": round(self.atr, 6),
@@ -188,6 +190,7 @@ class IndicatorSnapshot:
                 "ratio": round(self.volume_ratio, 2),
             },
         }
+        return res
 
     def to_tradingview_dict(self) -> dict:
         """Return clean dict structured for TradingView chart overlays & technical analysis HUD."""
@@ -441,47 +444,28 @@ class IndicatorCalculator:
                 snap.r2    = snap.pivot + (last_high - last_low)
                 snap.s2    = snap.pivot - (last_high - last_low)
 
-            # ── Smart Money Concepts (SMC: FVG, Order Block, BOS/CHoCH) ──────
-            # 1. Fair Value Gap (FVG)
-            for idx in range(len(df) - 1, max(len(df) - 10, 2), -1):
-                c1 = df.iloc[idx - 2]
-                c3 = df.iloc[idx]
-                if c3["low"] > c1["high"]:
-                    snap.smc_fvg_detected = "BULLISH_FVG"
-                    snap.smc_fvg_bottom = float(c1["high"])
-                    snap.smc_fvg_top = float(c3["low"])
-                    snap.smc_fvg_gap_size = round((snap.smc_fvg_top - snap.smc_fvg_bottom) / pip, 1)
-                    break
-                elif c3["high"] < c1["low"]:
-                    snap.smc_fvg_detected = "BEARISH_FVG"
-                    snap.smc_fvg_bottom = float(c3["high"])
-                    snap.smc_fvg_top = float(c1["low"])
-                    snap.smc_fvg_gap_size = round((snap.smc_fvg_top - snap.smc_fvg_bottom) / pip, 1)
-                    break
-
-            # 2. Order Block (OB)
-            for idx in range(len(df) - 2, max(len(df) - 15, 2), -1):
-                candle = df.iloc[idx]
-                next_candle = df.iloc[idx + 1]
-                if candle["close"] < candle["open"] and next_candle["close"] > candle["high"]:
-                    snap.smc_order_block = "BULLISH_OB"
-                    snap.smc_ob_bottom = float(candle["low"])
-                    snap.smc_ob_top = float(candle["high"])
-                    break
-                elif candle["close"] > candle["open"] and next_candle["close"] < candle["low"]:
-                    snap.smc_order_block = "BEARISH_OB"
-                    snap.smc_ob_bottom = float(candle["low"])
-                    snap.smc_ob_top = float(candle["high"])
-                    break
-
-            # 3. Market Structure (BOS / CHoCH)
-            if len(df) >= 20:
-                recent_high = float(df["high"].tail(20).iloc[:-2].max())
-                recent_low  = float(df["low"].tail(20).iloc[:-2].min())
-                if snap.close > recent_high:
-                    snap.smc_market_structure = "BOS_BULLISH"
-                elif snap.close < recent_low:
-                    snap.smc_market_structure = "BOS_BEARISH"
+            # ── Smart Money Concepts (SMC Engine v2: OB, FVG, BOS, CHoCH, Sweeps, Zones) ──
+            try:
+                from agent.data.smc_engine import smc_engine
+                smc_res = smc_engine.analyze(df, symbol=symbol, timeframe=timeframe)
+                if smc_res:
+                    snap.smc_full_dict = smc_res.to_dict()
+                    if smc_res.active_order_blocks():
+                        last_ob = smc_res.active_order_blocks()[-1]
+                        snap.smc_order_block = "BULLISH_OB" if last_ob.is_bullish else "BEARISH_OB"
+                        snap.smc_ob_top = last_ob.top
+                        snap.smc_ob_bottom = last_ob.bottom
+                    if smc_res.active_fvgs():
+                        last_fvg = smc_res.active_fvgs()[-1]
+                        snap.smc_fvg_detected = "BULLISH_FVG" if last_fvg.is_bullish else "BEARISH_FVG"
+                        snap.smc_fvg_top = last_fvg.top
+                        snap.smc_fvg_bottom = last_fvg.bottom
+                        snap.smc_fvg_gap_size = round(last_fvg.size / pip, 1)
+                    if smc_res.structure_breaks:
+                        last_break = smc_res.structure_breaks[-1]
+                        snap.smc_market_structure = f"{last_break.break_type}_{last_break.direction}"
+            except Exception as smc_err:
+                logger.debug(f"SMC Engine analysis note ({symbol} {timeframe}): {smc_err}")
 
             logger.debug(
                 f"Indicators ✓ {symbol} {timeframe} | "

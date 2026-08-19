@@ -92,6 +92,7 @@ def test_yfinance_tick_fallback():
     from agent.data.mt5_feed import mt5_feed
     import time
     
+    mt5_feed._remote_active = False
     mt5_feed._simulated_prices.clear()
     mt5_feed._last_tick_fetch_time.clear()
     

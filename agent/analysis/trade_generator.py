@@ -87,7 +87,7 @@ class TradeGenerator:
         self,
         atr_sl_buffer_mult: float = 0.30,    # ATR multiplier for SL buffer beyond zone
         atr_entry_buffer_mult: float = 0.10, # ATR multiplier for limit order buffer
-        min_rr: float = 2.0,
+        min_rr: float = 1.5,
     ):
         self.atr_sl_buffer_mult = atr_sl_buffer_mult
         self.atr_entry_buffer_mult = atr_entry_buffer_mult
@@ -178,20 +178,29 @@ class TradeGenerator:
         rr_tp3 = (abs(tp3 - entry) / risk) if tp3 else None
 
         if rr_tp2 < self.min_rr:
-            # Attempt to extend TP2 using HTF levels
-            # Last chance: use swing level from 4H
+            # Attempt to extend TP2 using HTF levels or dynamic R:R multiplier
             if is_bull:
                 swing_4h_high = smc_4h.get("active_swing_high")
                 if swing_4h_high and (swing_4h_high - entry) / risk >= self.min_rr:
                     tp2 = swing_4h_high
                     rr_tp2 = abs(tp2 - entry) / risk
                     tp_basis += " [extended to 4H swing high for min RR]"
+                else:
+                    tp2 = entry + (risk * self.min_rr * 1.1)
+                    rr_tp2 = abs(tp2 - entry) / risk
+                    tp_basis += " [extended to 1.65x R:R target]"
             else:
                 swing_4h_low = smc_4h.get("active_swing_low")
                 if swing_4h_low and (entry - swing_4h_low) / risk >= self.min_rr:
                     tp2 = swing_4h_low
                     rr_tp2 = abs(tp2 - entry) / risk
                     tp_basis += " [extended to 4H swing low for min RR]"
+                else:
+                    tp2 = entry - (risk * self.min_rr * 1.1)
+                    rr_tp2 = abs(tp2 - entry) / risk
+                    tp_basis += " [extended to 1.65x R:R target]"
+
+        reward_tp2_points = abs(tp2 - entry)
 
         if rr_tp2 < self.min_rr:
             return TradeLevels(

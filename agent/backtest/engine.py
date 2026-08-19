@@ -45,6 +45,7 @@ class BacktestConfig:
     confluence_threshold: float = 0.45
     min_bars_between_trades: int = 5       # Prevent overtrading
     use_partial_exits: bool = True         # TP1/TP2/TP3 partial scaling
+    primary_tf: str = "1H"                 # "1M" | "15M" | "1H" | "4H"
 
 
 @dataclass
@@ -158,8 +159,24 @@ class BacktestEngine:
         # Minimum warmup bars needed for indicators
         MIN_WARMUP = 200
 
-        if len(df_1h) < MIN_WARMUP:
-            logger.warning(f"Not enough 1H bars for backtest: {len(df_1h)} < {MIN_WARMUP}")
+        # ── Determine primary execution DataFrame from config ──────────────
+        MIN_WARMUP = 200
+        tf = self.config.primary_tf.upper()
+        if tf == "1M" and df_1m is not None and len(df_1m) > MIN_WARMUP:
+            df_primary = df_1m
+            primary_name = "1M"
+        elif tf == "15M" and df_15m is not None and len(df_15m) > MIN_WARMUP:
+            df_primary = df_15m
+            primary_name = "15M"
+        elif tf == "4H" and df_4h is not None and len(df_4h) > MIN_WARMUP:
+            df_primary = df_4h
+            primary_name = "4H"
+        else:
+            df_primary = df_1h
+            primary_name = "1H"
+
+        if len(df_primary) < MIN_WARMUP:
+            logger.warning(f"Not enough bars in primary timeframe {primary_name}: {len(df_primary)} < {MIN_WARMUP}")
             return BacktestResult(
                 config=self.config,
                 metrics=BacktestMetrics(),
@@ -167,12 +184,11 @@ class BacktestEngine:
             )
 
         logger.info(
-            f"Starting backtest: {self.config.symbol} | "
-            f"1H bars: {len(df_1h)} | 4H bars: {len(df_4h)} | "
-            f"15M bars: {len(df_15m)} | 1M bars: {len(df_1m)}"
+            f"Starting backtest: {self.config.symbol} | Primary TF: {primary_name} ({len(df_primary)} bars) | "
+            f"4H: {len(df_4h)} | 1H: {len(df_1h)} | 15M: {len(df_15m)} | 1M: {len(df_1m)}"
         )
 
-        total_bars = len(df_1h) - MIN_WARMUP
+        total_bars = len(df_primary) - MIN_WARMUP
 
         # ── Pre-calculate Indicators ONCE for 100x speed ───────────────────
         try:
@@ -209,11 +225,11 @@ class BacktestEngine:
             except Exception:
                 return default_val
 
-        # ── Main loop: iterate over 1H bars ────────────────────────────────
-        for bar_idx in range(MIN_WARMUP, len(df_1h)):
+        # ── Main loop: iterate over primary timeframe bars ─────────────────
+        for bar_idx in range(MIN_WARMUP, len(df_primary)):
             bars_processed += 1
             relative_idx = bar_idx - MIN_WARMUP
-            if relative_idx % 200 == 0 or bar_idx == len(df_1h) - 1:
+            if relative_idx % 200 == 0 or bar_idx == len(df_primary) - 1:
                 pct = (relative_idx / total_bars) * 100.0
                 bar_len = 30
                 filled = int(bar_len * relative_idx // total_bars)
@@ -221,13 +237,13 @@ class BacktestEngine:
                 open_cnt = len(open_trades)
                 closed_cnt = len(trades)
                 sys.stdout.write(
-                    f"\r⏳ Backtest: [{bar_str}] {pct:5.1f}% | "
-                    f"Bar {bar_idx}/{len(df_1h)} | Closed Trades: {closed_cnt} | Open: {open_cnt}"
+                    f"\r⏳ Backtest ({primary_name}): [{bar_str}] {pct:5.1f}% | "
+                    f"Bar {bar_idx}/{len(df_primary)} | Closed Trades: {closed_cnt} | Open: {open_cnt}"
                 )
                 sys.stdout.flush()
 
-            current_bar = df_1h.iloc[bar_idx]
-            current_time = current_bar["time"] if "time" in df_1h.columns else bar_idx
+            current_bar = df_primary.iloc[bar_idx]
+            current_time = current_bar["time"] if "time" in df_primary.columns else bar_idx
             current_price = float(current_bar["close"])
             current_high = float(current_bar["high"])
             current_low = float(current_bar["low"])
@@ -238,7 +254,7 @@ class BacktestEngine:
                 exit_price = None
                 exit_reason = ""
 
-                if ot.direction == "BUY":
+                if ot.direction in ("BUY", "LONG"):
                     if current_low <= ot.sl_price:
                         exit_price = ot.sl_price
                         exit_reason = "SL_HIT"
@@ -253,7 +269,7 @@ class BacktestEngine:
                     elif ot.tp2_price > 0 and current_high >= ot.tp2_price and ot.remaining_lots_pct <= 60:
                         exit_price = ot.tp2_price
                         exit_reason = "TP2_HIT"
-                elif ot.direction == "SELL":
+                elif ot.direction in ("SELL", "SHORT"):
                     if current_high >= ot.sl_price:
                         exit_price = ot.sl_price
                         exit_reason = "SL_HIT"
@@ -270,7 +286,7 @@ class BacktestEngine:
                         exit_reason = "TP2_HIT"
 
                 if exit_price is not None:
-                    if ot.direction == "BUY":
+                    if ot.direction in ("BUY", "LONG"):
                         pnl_points = exit_price - ot.entry_price
                     else:
                         pnl_points = ot.entry_price - exit_price
@@ -306,31 +322,53 @@ class BacktestEngine:
             ):
                 continue
 
-            # ── 3. Build causal data window (NO LOOK-AHEAD) ────────────────
-            start_idx = max(0, bar_idx - 300)
-            df_1h_window = df_1h.iloc[start_idx:bar_idx].copy().reset_index(drop=True)
+            # ── 3. Build causal data window across ALL timeframes (NO LOOK-AHEAD) ──
+            if "time" in df_1h.columns and "time" in df_primary.columns:
+                mask_1h = df_1h["time"] <= current_time
+                df_1h_window = df_1h[mask_1h].tail(300).copy().reset_index(drop=True)
+            else:
+                df_1h_window = df_1h.tail(300).copy().reset_index(drop=True)
+
             if len(df_1h_window) < 50:
                 continue
 
-            if "time" in df_4h.columns and "time" in df_1h.columns:
+            if "time" in df_4h.columns and "time" in df_primary.columns:
                 mask_4h = df_4h["time"] <= current_time
                 df_4h_window = df_4h[mask_4h].tail(150).copy().reset_index(drop=True)
             else:
-                df_4h_window = df_4h.iloc[max(0, (bar_idx // 4) - 150):max(1, bar_idx // 4)].copy().reset_index(drop=True)
+                df_4h_window = df_4h.tail(150).copy().reset_index(drop=True)
 
             if len(df_4h_window) < 30:
                 continue
 
-            # ── 4. Run deterministic pipeline ──────────────────────────────
+            # Build 15M causal window
+            if df_15m is not None and not df_15m.empty and "time" in df_15m.columns:
+                mask_15m = df_15m["time"] <= current_time
+                df_15m_window = df_15m[mask_15m].tail(200).copy().reset_index(drop=True)
+            else:
+                df_15m_window = df_1h_window
+
+            # Build 1M causal window
+            if df_1m is not None and not df_1m.empty and "time" in df_1m.columns:
+                mask_1m = df_1m["time"] <= current_time
+                df_1m_window = df_1m[mask_1m].tail(200).copy().reset_index(drop=True)
+            else:
+                df_1m_window = df_1h_window
+
+            # ── 4. Run multi-timeframe deterministic pipeline ───────────────
             try:
                 smc_4h_obj = smc_engine.analyze(df_4h_window, self.config.symbol, "4H")
                 smc_1h_obj = smc_engine.analyze(df_1h_window, self.config.symbol, "1H")
+                smc_15m_obj = smc_engine.analyze(df_15m_window, self.config.symbol, "15M") if len(df_15m_window) >= 30 else smc_1h_obj
+                smc_1m_obj = smc_engine.analyze(df_1m_window, self.config.symbol, "1M") if len(df_1m_window) >= 30 else smc_1h_obj
 
                 if not smc_4h_obj or not smc_1h_obj:
                     continue
 
                 smc_4h = smc_4h_obj.to_dict() if hasattr(smc_4h_obj, "to_dict") else smc_4h_obj
                 smc_1h = smc_1h_obj.to_dict() if hasattr(smc_1h_obj, "to_dict") else smc_1h_obj
+                smc_15m = smc_15m_obj.to_dict() if hasattr(smc_15m_obj, "to_dict") else smc_15m_obj
+                smc_1m = smc_1m_obj.to_dict() if hasattr(smc_1m_obj, "to_dict") else smc_1m_obj
 
                 # Fast $O(1)$ indicator lookups from pre-calculated columns
                 adx_4h = _clean_val(df_4h_window.iloc[-1].get("adx"), 25.0)
@@ -365,8 +403,11 @@ class BacktestEngine:
                     allowed_strategies=regime_result.allowed_strategies,
                     smc_4h=smc_4h,
                     smc_1h=smc_1h,
+                    smc_15m=smc_15m,
+                    smc_1m=smc_1m,
                     trend_4h=smc_4h.get("trend", "NEUTRAL"),
                     trend_1h=smc_1h.get("trend", "NEUTRAL"),
+                    trend_15m=smc_15m.get("trend", "NEUTRAL"),
                     current_price=current_price,
                     premium_discount_4h=smc_4h.get("premium_discount", "NEUTRAL"),
                     premium_discount_1h=smc_1h.get("premium_discount", "NEUTRAL"),
@@ -387,6 +428,7 @@ class BacktestEngine:
                     atr_1h=atr_1h,
                     smc_4h=smc_4h,
                     smc_1h=smc_1h,
+                    smc_15m=smc_15m,
                 )
 
                 if not trade_levels.valid or trade_levels.rr_tp2 < self.config.min_rr_ratio:
@@ -399,6 +441,8 @@ class BacktestEngine:
                     direction=direction,
                     smc_4h=smc_4h,
                     smc_1h=smc_1h,
+                    smc_15m=smc_15m,
+                    smc_1m=smc_1m,
                     spread_pips=self.config.spread_pips,
                     max_spread_pips=5.0,
                     current_price=current_price,
@@ -417,10 +461,19 @@ class BacktestEngine:
                     direction=direction,
                     smc_4h=smc_4h,
                     smc_1h=smc_1h,
-                    regime_result=regime_result,
-                    strategy_result=strategy_result,
-                    trade_levels=trade_levels,
-                    val_result=val_result,
+                    smc_15m=smc_15m,
+                    smc_1m=smc_1m,
+                    adx_4h=adx_4h,
+                    adx_1h=adx_1h,
+                    rsi_4h=rsi_4h,
+                    rsi_1h=rsi_1h,
+                    volume_ratio=smc_1h.get("volume_ratio", 1.0),
+                    rr_ratio=trade_levels.rr_tp2,
+                    min_rr=self.config.min_rr_ratio,
+                    spread_pips=self.config.spread_pips,
+                    validator_score=getattr(val_result, "total_score", 0.5),
+                    validator_passed=getattr(val_result, "passed", True),
+                    mandatory_failures=getattr(val_result, "mandatory_failures", []),
                 )
 
                 if conf_result.total_score < self.config.confluence_threshold:
@@ -440,7 +493,7 @@ class BacktestEngine:
                 rr = trade_levels.rr_tp2
 
                 # Apply spread
-                if direction == "BUY":
+                if direction in ("BUY", "LONG"):
                     entry += self.config.spread_pips * self._pip_size
                 else:
                     entry -= self.config.spread_pips * self._pip_size
@@ -475,7 +528,7 @@ class BacktestEngine:
         if open_trades:
             last_close = float(df_1h.iloc[-1]["close"])
             for ot in open_trades:
-                if ot.direction == "BUY":
+                if ot.direction in ("BUY", "LONG"):
                     pnl_points = last_close - ot.entry_price
                 else:
                     pnl_points = ot.entry_price - last_close

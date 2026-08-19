@@ -311,22 +311,23 @@ You are executing REAL trades. Be precise and disciplined.
 ## CURRENTLY OPEN POSITIONS
 {positions_info}
 
-## TRADING STRATEGY - AUTO-SCALP
-- Target duration: 1-3 minutes (next 1-3 M1 candles)
-- Focus exclusively on M1 momentum, M5 trend confirmation, M15 macro bias
-- **ZERO DIRECTIONAL BIAS (EVALUATE BUY & SELL EQUALLY)**:
-  - If M1 momentum is DOWNWARDS, EMAs align bearishly, RSI < 50, or micro-support breaks down Ã¢ÂÂ execute a **SELL** trade.
-  - If M1 momentum is UPWARDS, EMAs align bullishly, RSI > 50, or micro-resistance breaks out Ã¢ÂÂ execute a **BUY** trade.
-  - Do NOT default to BUY. If the market is moving down, execute SELL!
-- Confidence threshold: 0.60 is sufficient to trade.
-- HOLD only when: price is truly sideways with no momentum.
-- CLOSE early if momentum reverses against an open position.
+## TRADING STRATEGY - INSTITUTIONAL SMC SCALPING
+- Target duration: 1-5 minutes (M1/M5 SMC execution)
+- **STRICT PROHIBITION**: NEVER write a basic/lazy thesis like "RSI is above 50 and MACD is positive". You MUST analyze Smart Money Concepts!
+- **INSTITUTIONAL SMC REQUIREMENTS**:
+  1. **Market Structure (BOS / CHoCH / MSS)**: Look for Change of Character (CHoCH) or Market Structure Shift (MSS) on M1/M5.
+  2. **Order Blocks (OB) & Fair Value Gaps (FVG)**: Identify active Bullish/Bearish OB or unfilled FVG zone reactions.
+  3. **Liquidity Sweeps & Pullback Wicks**: Price usually sweeps liquidity (wicks down/up into OB/FVG) BEFORE completing the move. Do NOT buy blindly at high breakout prices where SL will be swept. Verify price is in Discount Zone for BUY, or Premium Zone for SELL.
+- **ZERO DIRECTIONAL BIAS**:
+  - Bearish CHoCH + Bearish OB/FVG + Premium Zone → execute **SELL**.
+  - Bullish CHoCH + Bullish OB/FVG + Discount Zone → execute **BUY**.
+- Confidence threshold: 0.65 is required to trade.
 
 ## CHAIN-OF-THOUGHT ANALYSIS (MANDATORY)
-1. Bullish Case: Upside momentum or breakout on M1
-2. Bearish Case: Downside momentum or breakdown on M1
+1. Bullish Case: Bullish CHoCH / MSS, price swept Sell-Side Liquidity (SSL) into Bullish OB/FVG in Discount Zone.
+2. Bearish Case: Bearish CHoCH / MSS, price swept Buy-Side Liquidity (BSL) into Bearish OB/FVG in Premium Zone.
 3. Open Position Review: Should any open position be closed early?
-4. Final Trade Thesis: Select BUY, SELL, CLOSE, or HOLD
+4. Final Institutional SMC Thesis: Select BUY, SELL, CLOSE, or HOLD
 
 ## OUTPUT FORMAT - CRITICAL
 Respond with ONLY valid JSON. No markdown. No text outside the JSON.
@@ -334,30 +335,30 @@ Respond with ONLY valid JSON. No markdown. No text outside the JSON.
 For a NEW BUY trade:
 {{
   "pair": "XAUUSD",
-  "bullish_case": "M1 showing strong upside breakout, price above EMA 9/21",
-  "bearish_case": "No major resistance",
-  "trade_thesis": "M1 breakout momentum is strongly bullish. Entering BUY scalp",
+  "bullish_case": "M1 CHoCH confirmed after sweeping SSL into M5 Bullish OB (4355.0-4357.0) in Discount Zone",
+  "bearish_case": "Minor overhead Bearish FVG at 4362.0",
+  "trade_thesis": "Price swept Sell-Side Liquidity into M5 Bullish Order Block at 4356.50 with M1 CHoCH structure shift. Entering BUY scalp.",
   "action": "BUY",
-  "confidence": 0.88,
-  "entry": 2411.00,
-  "sl": 2409.00,
-  "tp": 2412.00,
-  "pattern": "M1 Breakout",
+  "confidence": 0.85,
+  "entry": 4357.50,
+  "sl": 4354.50,
+  "tp": 4360.50,
+  "pattern": "SMC OB + Liquidity Sweep",
   "session": "London"
 }}
 
 For a NEW SELL trade:
 {{
   "pair": "XAUUSD",
-  "bullish_case": "No buying support present",
-  "bearish_case": "M1 showing strong downside breakdown, price below EMA 9/21, RSI 38",
-  "trade_thesis": "M1 breakdown momentum is strongly bearish. Entering SELL scalp",
+  "bullish_case": "Price in Premium Zone",
+  "bearish_case": "M1 Bearish MSS confirmed after sweeping BSL at 4365.0 into M5 Bearish OB",
+  "trade_thesis": "Price swept Buy-Side Liquidity at 4365.00 into M5 Bearish Order Block in Premium Zone with M1 MSS reversal. Entering SELL scalp.",
   "action": "SELL",
-  "confidence": 0.88,
-  "entry": 2412.00,
-  "sl": 2414.00,
-  "tp": 2411.00,
-  "pattern": "M1 Breakdown",
+  "confidence": 0.85,
+  "entry": 4364.00,
+  "sl": 4367.00,
+  "tp": 4361.00,
+  "pattern": "SMC Bearish OB + BSL Sweep",
   "session": "London"
 }}
 

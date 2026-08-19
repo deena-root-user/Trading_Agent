@@ -383,6 +383,13 @@ class DecisionParser:
         """Try multiple strategies to extract JSON from raw LLM text."""
         text = text.strip()
 
+        # Remove reasoning model <think>...</think> tags if present
+        if "<think>" in text:
+            if "</think>" in text:
+                text = text.split("</think>")[-1].strip()
+            else:
+                text = re.sub(r"<think>.*", "", text, flags=re.DOTALL).strip()
+
         # Strategy 1: Direct JSON parse
         try:
             return json.loads(text)

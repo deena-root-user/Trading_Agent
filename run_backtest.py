@@ -101,7 +101,8 @@ def main():
         print(f"  ⚠️ 1M Load Warning: {e}")
         df_1m = pd.DataFrame()
 
-    print("\n⚙️ Configuring Backtest Pipeline...")
+    primary_tf = sys.argv[1].upper() if len(sys.argv) > 1 else "1H"
+    print(f"\n⚙️ Configuring Backtest Pipeline on Primary Timeframe: {primary_tf} (with 15M, 1H, and 4H context)...")
     config = BacktestConfig(
         symbol="XAUUSD",
         initial_balance=1000.0,
@@ -111,15 +112,21 @@ def main():
         min_rr_ratio=1.5,
         confluence_threshold=0.45,
         use_partial_exits=True,
+        primary_tf=primary_tf,
     )
 
-    print("🚀 Executing Causal Bar-by-Bar Backtest...")
     engine = BacktestEngine(config)
+    
+    # ── Execute Multi-Timeframe Causal Backtest ─────────────────────────────
+    print(f"\n🚀 Executing Causal Bar-by-Bar Multi-Timeframe Backtest on {primary_tf}...")
     results = engine.run(df_4h=df_4h, df_1h=df_1h, df_15m=df_15m, df_1m=df_1m)
 
-    print("\n" + results.metrics.summary())
+    print("\n" + "=" * 70)
+    print("  PAXIS MULTI-TIMEFRAME BACKTEST PERFORMANCE REPORT")
+    print("=" * 70)
+    print(results.metrics.summary())
 
-    # ── Permanently save backtest results to JSON and SQLite memory ────────
+    # ── Permanently save backtest results to JSON ───────────────────────────
     import json
     save_data = {
         "summary": results.metrics.summary(),
@@ -129,12 +136,26 @@ def main():
         "win_rate": results.metrics.win_rate,
         "profit_factor": results.metrics.profit_factor,
         "net_pnl": results.metrics.total_pnl,
+        "timeframe_coverage": {
+            "4H_bars": len(df_4h),
+            "1H_bars": len(df_1h),
+            "15M_bars": len(df_15m),
+            "1M_bars": len(df_1m),
+        }
     }
     with open("backtest_results.json", "w") as f:
         json.dump(save_data, f, indent=2)
     print("💾 Saved performance results permanently to backtest_results.json")
 
-    print("\n" + "=" * 70)
+    # Export trade records to CSV if requested or default export
+    if "--export-csv" in sys.argv or True:
+        import pandas as pd
+        if results.trades:
+            trade_dicts = [t.to_dict() if hasattr(t, "to_dict") else vars(t) for t in results.trades]
+            trades_df = pd.DataFrame(trade_dicts)
+            trades_df.to_csv("backtest_trades.csv", index=False)
+            print("📊 Saved detailed trade records permanently to backtest_trades.csv")
+    print("=" * 70)
 
 
 if __name__ == "__main__":

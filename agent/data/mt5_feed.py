@@ -63,6 +63,7 @@ class MT5Feed:
     _simulated_prices: Dict[str, float] = {}
     _last_tick_fetch_time: Dict[str, float] = {}
     _last_remote_check_time: float = 0.0
+    _remote_fail_count: int = 0
 
     def __init__(self):
         self._init_ticket_counter()
@@ -382,22 +383,24 @@ class MT5Feed:
 
             try:
                 url = f"http://{settings.mt5_remote_ip}:{settings.mt5_remote_port}/health"
-                response = requests.get(url, timeout=2)
+                response = requests.get(url, timeout=5)
                 if response.status_code == 200:
                     try:
                         response.json()
                         self._connected = True
+                        self._remote_fail_count = 0
                         if not self._active_symbols:
                             self._fetch_active_symbols()
                         return True
                     except Exception:
                         pass
                 url_status = f"http://{settings.mt5_remote_ip}:{settings.mt5_remote_port}/status"
-                response_status = requests.get(url_status, timeout=2)
+                response_status = requests.get(url_status, timeout=5)
                 if response_status.status_code == 200:
                     try:
                         response_status.json()
                         self._connected = True
+                        self._remote_fail_count = 0
                         if not self._active_symbols:
                             self._fetch_active_symbols()
                         return True
@@ -405,8 +408,15 @@ class MT5Feed:
                         pass
             except Exception:
                 pass
-            logger.warning("Remote MT5 bridge connection lost. Falling back to simulated mode.")
-            self._remote_active = False
+
+            self._remote_fail_count += 1
+            if self._remote_fail_count >= 3:
+                if self._remote_active:
+                    logger.warning(f"Remote MT5 bridge connection lost after {self._remote_fail_count} failed checks. Falling back to simulated mode.")
+                self._remote_active = False
+            else:
+                logger.debug(f"Remote MT5 health check transient failure ({self._remote_fail_count}/3) — keeping remote active.")
+
             self._connected = True
             self._last_remote_check_time = current_time
             return True
@@ -523,7 +533,7 @@ class MT5Feed:
             resolved = self.resolve_symbol(symbol)
             try:
                 url = f"http://{settings.mt5_remote_ip}:{settings.mt5_remote_port}/rates/{resolved}?timeframe={timeframe}&count={count}"
-                response = requests.get(url, timeout=5)
+                response = requests.get(url, timeout=10)
                 if response.status_code == 200:
                     data = response.json()
                     if isinstance(data, list) and len(data) > 0:

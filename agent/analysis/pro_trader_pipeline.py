@@ -215,9 +215,11 @@ class ProTraderPipeline:
             premium_discount_1h=premium_discount_1h,
         )
 
-        logger.info(f"[{symbol}] Regime: {regime_result.primary} | conf={regime_result.confidence:.2f} | "
-                    f"ADX={adx_4h:.1f} | aligned={regime_result.trends_aligned} | "
-                    f"no_trade={regime_result.is_no_trade_regime}")
+        align_status = "FULL" if regime_result.trends_aligned else ("PARTIAL (Retracement)" if regime_result.primary == "PULLBACK_RETRACEMENT" else "NO")
+        logger.info(
+            f"[{symbol}] Regime: {regime_result.primary} | conf={regime_result.confidence:.2f} | "
+            f"ADX={adx_4h:.1f} | alignment={align_status} | no_trade={regime_result.is_no_trade_regime}"
+        )
 
         if regime_result.is_no_trade_regime:
             return ProTraderDecision(
@@ -322,9 +324,11 @@ class ProTraderPipeline:
             min_rr_ratio=settings.min_rr_ratio,
         )
 
-        logger.info(f"[{symbol}] Validator: {'PASS' if validator_result.is_valid else 'FAIL'} | "
-                    f"score={validator_result.total_score:.2f} | "
-                    f"mandatory_fail={validator_result.mandatory_failures}")
+        hard_blocks_str = "NONE ✓" if not validator_result.mandatory_failures else str(validator_result.mandatory_failures)
+        logger.info(
+            f"[{symbol}] Validator: {'PASS ✓' if validator_result.is_valid else 'FAIL ❌'} | "
+            f"score={validator_result.total_score:.2f} | hard_blocks={hard_blocks_str}"
+        )
 
         validator_dict = validator_result.to_dict()
 
@@ -409,8 +413,13 @@ class ProTraderPipeline:
             signal_grade=confluence_result.signal_grade,
         )
 
+        logger.info(
+            f"[{symbol}] 🧠 Calling LLM for trade validation "
+            f"(grade={confluence_result.signal_grade}, confluence={confluence_result.total_score:.3f})..."
+        )
         raw_response = self._ollama_client.chat(messages, temperature=0.1)
         llm_elapsed = (time.time() - llm_start) * 1000
+        logger.info(f"[{symbol}] ⚡ LLM response received ({llm_elapsed:.0f}ms)")
 
         if raw_response is None:
             logger.warning(f"[{symbol}] LLM timeout/error — HOLD this cycle")

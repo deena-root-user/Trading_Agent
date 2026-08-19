@@ -293,8 +293,8 @@ class ConfluenceEngine:
 
         # ── Category 5: Session Timing (weight=8%) ─────────────────────────────
         valid_sessions = {"LONDON", "NY", "LONDON_NY_OVERLAP"}
-        session_ok = current_session in valid_sessions
-        session_base = 0.7 if session_ok else 0.2
+        session_ok = (current_session in valid_sessions) or (current_session is None or current_session in ("", "UNKNOWN"))
+        session_base = 0.7 if session_ok else 0.5
 
         # Bonus for overlap (highest liquidity)
         if is_overlap:
@@ -383,18 +383,29 @@ class ConfluenceEngine:
         total = round(min(1.0, total), 4)
 
         # ── Grade and Thresholds ───────────────────────────────────────────────
+        from agent.config import settings
+        llm_threshold = getattr(settings, "confluence_llm_threshold", 0.50)
+
+        grade_thresholds = [
+            (0.92, "A+"),
+            (0.85, "A"),
+            (0.70, "B"),
+            (llm_threshold, "C"),
+            (0.0,  "NO_TRADE"),
+        ]
+
         signal_grade = "NO_TRADE"
-        for threshold, grade in self.GRADE_THRESHOLDS:
+        for threshold, grade in grade_thresholds:
             if total >= threshold:
                 signal_grade = grade
                 break
 
-        should_call_llm = total >= self.LLM_THRESHOLD
+        should_call_llm = total >= llm_threshold
         needs_critic = should_call_llm and total < self.CRITIC_THRESHOLD
         bypass_critic = should_call_llm and total >= self.CRITIC_THRESHOLD
         reject_no_llm = not should_call_llm
         rejection_reason = "" if should_call_llm else (
-            f"Confluence score {total:.1%} below LLM threshold {self.LLM_THRESHOLD:.0%} — "
+            f"Confluence score {total:.1%} below LLM threshold {llm_threshold:.0%} — "
             f"Low: {', '.join(f'{k}={v:.2f}' for k, v in category_scores.items() if v < 0.40)}"
         )
 

@@ -178,7 +178,7 @@ Be the devil's advocate — assume the market wants to trap retail traders here.
     ) -> dict:
         """Build the structured context dict for the LLM."""
 
-        # Compact SMC summaries (only key fields to save tokens)
+        # Compact SMC summaries (with exact OB/FVG price boundaries & structure breaks)
         def smc_compact(d: dict) -> dict:
             return {
                 "trend": d.get("trend"),
@@ -186,14 +186,12 @@ Be the devil's advocate — assume the market wants to trap retail traders here.
                 "displacement_detected": d.get("displacement_detected"),
                 "displacement_direction": d.get("displacement_direction"),
                 "inducement_swept": d.get("inducement_swept"),
-                "hh": d.get("hh_count"), "hl": d.get("hl_count"),
-                "lh": d.get("lh_count"), "ll": d.get("ll_count"),
                 "recent_breaks": d.get("recent_breaks", [])[-3:],
                 "recent_sweeps": d.get("recent_sweeps", [])[-2:],
-                "bullish_obs": len(d.get("active_bullish_obs", [])),
-                "bearish_obs": len(d.get("active_bearish_obs", [])),
-                "bullish_fvgs": len(d.get("active_bullish_fvgs", [])),
-                "bearish_fvgs": len(d.get("active_bearish_fvgs", [])),
+                "active_bullish_obs": d.get("active_bullish_obs", [])[:2],
+                "active_bearish_obs": d.get("active_bearish_obs", [])[:2],
+                "active_bullish_fvgs": d.get("active_bullish_fvgs", [])[:2],
+                "active_bearish_fvgs": d.get("active_bearish_fvgs", [])[:2],
                 "next_liquidity_target": d.get("next_liquidity_target"),
                 "distance_to_nearest_bsl": d.get("distance_to_nearest_bsl"),
                 "distance_to_nearest_ssl": d.get("distance_to_nearest_ssl"),

@@ -40,23 +40,23 @@ class Settings(BaseSettings):
 
     # ── Ollama / LLM ──────────────────────────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = Field("deepseek-r1:32b", description="Primary decision model — DeepSeek R1 32B reasoning model")
-    ollama_fallback_model: str = Field("deepseek-r1:14b", description="Fallback model if primary times out")
+    ollama_model: str = Field("qwen2.5:14b", description="Primary decision model — Qwen 2.5 14B precision trading model")
+    ollama_fallback_model: str = Field("qwen2.5:3b", description="Fallback model if primary times out")
     ollama_temperature: float = Field(0.1, description="Low temperature for consistent deterministic reasoning")
     ollama_top_p: float = Field(0.85, description="Top-p sampling — slightly below 1.0 to reduce hallucination")
-    inference_timeout_seconds: int = Field(120, description="Timeout for text inference requests")
-    deepseek_thinking_mode: bool = Field(True, description="Enable DeepSeek R1 extended thinking tokens")
+    inference_timeout_seconds: int = Field(120, description="Timeout for text inference requests before fallback")
+    deepseek_thinking_mode: bool = Field(False, description="Enable DeepSeek R1 extended thinking tokens")
 
     # ── Vision (disabled in Pro Trader text mode) ──────────────────────────────
     enable_vision: bool = Field(False, description="Vision disabled in Pro Trader mode — using structured JSON data")
-    vision_timeout_seconds: int = Field(90, description="Timeout for vision LLM requests before text fallback")
+    vision_timeout_seconds: int = Field(60, description="Timeout for vision LLM requests before text fallback")
 
     # ── Analysis Engine ────────────────────────────────────────────────────────
-    confluence_llm_threshold: float = Field(0.65, description="Minimum confluence score to call LLM")
+    confluence_llm_threshold: float = Field(0.50, description="Minimum confluence score to call LLM")
     confluence_critic_threshold: float = Field(0.85, description="Confluence score above which critic is bypassed")
     use_adversarial_critic: bool = Field(True, description="Enable adversarial critic on borderline setups")
-    max_num_predict_tokens: int = Field(512, description="Max tokens LLM generates per response")
-    num_ctx_tokens: int = Field(8192, description="Context window size for DeepSeek R1")
+    max_num_predict_tokens: int = Field(384, description="Max tokens LLM generates per response")
+    num_ctx_tokens: int = Field(4096, description="Context window size for LLM (fits 100% in GPU VRAM)")
 
     # ── Risk ──────────────────────────────────────────────────────────────────
     lot_size: float = Field(0.01, description="Fixed lot size — editable via dashboard")
@@ -76,13 +76,13 @@ class Settings(BaseSettings):
     # ── Scalping ──────────────────────────────────────────────────────────────
     scalping_mode: bool = Field(True, description="Enable specialized scalping mode for tight short-term trades")
     scalping_target_profit_usd: float = Field(1.0, description="Take profit target in USD for the base lot size (0.01 lots)")
-    scalping_sl_usd: float = Field(2.0, description="Stop loss in USD for the base lot size (0.01 lots)")
+    scalping_sl_usd: float = Field(4.5, description="Stop loss in USD for the base lot size (0.01 lots) — allows buffer beyond OB")
 
     # ── Auto-Execute Scalping Mode ────────────────────────────────────────────
     auto_scalp_mode: bool = Field(False, description="Enable fully autonomous scalp execution — LLM opens/closes trades every cycle")
     auto_scalp_cycle_minutes: int = Field(3, description="Cycle interval in minutes for auto-scalp mode (default: 3)")
     auto_scalp_max_trades: int = Field(2, description="Hard cap on concurrent open positions in auto-scalp mode (cannot exceed 2)")
-    auto_scalp_sl_usd: float = Field(2.0, description="Fixed stop loss in USD per 0.01 lot — always overrides LLM output")
+    auto_scalp_sl_usd: float = Field(4.5, description="Fixed stop loss in USD per 0.01 lot — allows buffer beyond OB")
     auto_scalp_tp_usd: float = Field(1.0, description="Fixed take profit in USD per 0.01 lot — always overrides LLM output")
     auto_scalp_use_vision: bool = Field(False, description="Enable vision screenshots during auto-scalp cycles (default False for maximum execution speed)")
 

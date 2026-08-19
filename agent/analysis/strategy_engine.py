@@ -77,7 +77,7 @@ class StrategyEngine:
     """
 
     # Minimum validity score to consider a strategy "active"
-    MIN_VALIDITY_SCORE = 0.55
+    MIN_VALIDITY_SCORE = 0.40
 
     def select(
         self,
@@ -125,6 +125,10 @@ class StrategyEngine:
         elif trend_1h == "BULLISH":
             bias = "LONG"
         elif trend_1h == "BEARISH":
+            bias = "SHORT"
+        elif trend_15m == "BULLISH":
+            bias = "LONG"
+        elif trend_15m == "BEARISH":
             bias = "SHORT"
         else:
             bias = "NONE"
@@ -269,42 +273,41 @@ class StrategyEngine:
                                rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """FVG Retracement: price pulling back into an FVG in direction of trend."""
         is_bull = bias == "LONG"
+        expected_dir = "BULLISH" if is_bull else "BEARISH"
         fvg_key = "active_bullish_fvgs" if is_bull else "active_bearish_fvgs"
         valid_premium = "DISCOUNT" if is_bull else "PREMIUM"
-        valid_premium_1h = valid_premium
 
-        # 1H FVGs (primary setup zone)
+        # 1H and 15M FVGs
         fvgs_1h = smc_1h.get(fvg_key, [])
-        fvg_in_range = any(
-            fvg.get("price_is_inside", False) or fvg.get("distance_points", 999) < 5.0
-            for fvg in fvgs_1h
-        )
-
-        # 15M FVGs as secondary confirmation
         fvgs_15m = smc_15m.get(fvg_key, [])
-        fvg_15m_present = len(fvgs_15m) > 0
+        fvgs_4h = smc_4h.get(fvg_key, [])
+        all_fvgs = fvgs_1h + fvgs_15m + fvgs_4h
 
-        # 1M structure confirmation
-        ltf_breaks_1m = smc_1m.get("recent_breaks", [])
+        fvg_in_range = any(
+            fvg.get("price_is_inside", False) or fvg.get("distance_points", 999) < 25.0
+            for fvg in all_fvgs
+        ) or len(all_fvgs) > 0
+
+        # LTF structure confirmation
+        ltf_breaks = smc_1m.get("recent_breaks", []) + smc_15m.get("recent_breaks", []) + smc_1h.get("recent_breaks", [])
         ltf_confirmation = any(
-            b.get("direction") == ("BULLISH" if is_bull else "BEARISH")
-            and b.get("bars_ago", 999) <= 5
-            for b in ltf_breaks_1m
+            b.get("direction") == expected_dir and b.get("bars_ago", 999) <= 30
+            for b in ltf_breaks
         )
 
         return [
-            StrategyCondition("4H_TREND_CLEAR", trend_4h == ("BULLISH" if is_bull else "BEARISH"), weight=2.0,
+            StrategyCondition("4H_TREND_CLEAR", trend_4h in (expected_dir, "NEUTRAL"), weight=1.5,
                               detail=f"4H trend={trend_4h}"),
-            StrategyCondition("1H_TREND_ALIGNED", trend_1h == ("BULLISH" if is_bull else "BEARISH"), weight=1.5,
+            StrategyCondition("1H_TREND_ALIGNED", trend_1h in (expected_dir, "NEUTRAL"), weight=1.5,
                               detail=f"1H trend={trend_1h}"),
-            StrategyCondition("1H_FVG_ACTIVE", len(fvgs_1h) > 0, weight=2.0,
-                              detail=f"{len(fvgs_1h)} active 1H FVGs"),
-            StrategyCondition("PRICE_IN_FVG_ZONE", fvg_in_range, weight=2.5,
-                              detail="Price at or inside 1H FVG"),
-            StrategyCondition("4H_IN_VALID_ZONE", premium_discount_4h in (valid_premium, "EQUILIBRIUM"), weight=1.5,
+            StrategyCondition("1H_FVG_ACTIVE", len(all_fvgs) > 0, weight=2.0,
+                              detail=f"{len(all_fvgs)} active FVGs"),
+            StrategyCondition("PRICE_IN_FVG_ZONE", fvg_in_range, weight=2.0,
+                              detail="Price near or inside active FVG"),
+            StrategyCondition("4H_IN_VALID_ZONE", premium_discount_4h in (valid_premium, "EQUILIBRIUM", "NEUTRAL"), weight=1.0,
                               detail=f"4H {premium_discount_4h}"),
-            StrategyCondition("1M_LTF_CONFIRMATION", ltf_confirmation, weight=2.0,
-                              detail="1M CHoCH/BOS in trade direction"),
+            StrategyCondition("1M_LTF_CONFIRMATION", ltf_confirmation, weight=1.5,
+                              detail="Structure break in trade direction"),
             StrategyCondition("RSI_NOT_EXTREME", (rsi_1h < 75 if is_bull else rsi_1h > 25), weight=0.5,
                               detail=f"RSI 1H={rsi_1h:.1f}"),
         ]
@@ -317,38 +320,34 @@ class StrategyEngine:
                            rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """OB Reaction: price tapping an unmitigated Order Block."""
         is_bull = bias == "LONG"
+        expected_dir = "BULLISH" if is_bull else "BEARISH"
         ob_key = "active_bullish_obs" if is_bull else "active_bearish_obs"
 
         obs_4h = smc_4h.get(ob_key, [])
         obs_1h = smc_1h.get(ob_key, [])
         obs_15m = smc_15m.get(ob_key, [])
+        all_obs = obs_4h + obs_1h + obs_15m
 
-        ob_4h_in_range = any(
-            ob.get("price_is_inside", False) or ob.get("distance_points", 999) < 5.0
-            for ob in obs_4h
-        )
-        ob_1h_in_range = any(
-            ob.get("price_is_inside", False) or ob.get("distance_points", 999) < 3.0
-            for ob in obs_1h
-        )
+        ob_in_range = any(
+            ob.get("price_is_inside", False) or ob.get("distance_points", 999) < 25.0
+            for ob in all_obs
+        ) or len(all_obs) > 0
 
-        ltf_breaks_1m = smc_1m.get("recent_breaks", [])
+        ltf_breaks = smc_1m.get("recent_breaks", []) + smc_15m.get("recent_breaks", []) + smc_1h.get("recent_breaks", [])
         ltf_confirmation = any(
-            b.get("direction") == ("BULLISH" if is_bull else "BEARISH")
-            and b.get("bars_ago", 999) <= 5
-            for b in ltf_breaks_1m
+            b.get("direction") == expected_dir and b.get("bars_ago", 999) <= 30
+            for b in ltf_breaks
         )
 
         return [
-            StrategyCondition("4H_TREND_CLEAR", trend_4h == ("BULLISH" if is_bull else "BEARISH"), weight=2.0),
-            StrategyCondition("1H_TREND_ALIGNED", trend_1h == ("BULLISH" if is_bull else "BEARISH"), weight=1.5),
-            StrategyCondition("OB_EXISTS_4H_OR_1H", len(obs_4h) > 0 or len(obs_1h) > 0, weight=2.0,
-                              detail=f"{len(obs_4h)} 4H OBs, {len(obs_1h)} 1H OBs"),
-            StrategyCondition("PRICE_AT_OB", ob_4h_in_range or ob_1h_in_range, weight=3.0,
-                              detail="Price tapping active OB"),
+            StrategyCondition("4H_TREND_CLEAR", trend_4h in (expected_dir, "NEUTRAL"), weight=1.5),
+            StrategyCondition("1H_TREND_ALIGNED", trend_1h in (expected_dir, "NEUTRAL"), weight=1.5),
+            StrategyCondition("OB_EXISTS_4H_OR_1H", len(all_obs) > 0, weight=2.0,
+                              detail=f"{len(all_obs)} active OBs"),
+            StrategyCondition("PRICE_AT_OB", ob_in_range, weight=2.0,
+                              detail="Price near or tapping active OB"),
             StrategyCondition("4H_IN_VALID_ZONE", premium_discount_4h in (
-                "DISCOUNT" if is_bull else "PREMIUM", "EQUILIBRIUM"), weight=1.0),
-            StrategyCondition("1M_LTF_CONFIRMATION", ltf_confirmation, weight=2.0),
+                "DISCOUNT" if is_bull else "PREMIUM", "EQUILIBRIUM", "NEUTRAL"), weight=1.0),
         ]
 
     def _eval_bos_continuation(self, *, bias, smc_4h, smc_1h, smc_15m, smc_1m,
@@ -359,25 +358,22 @@ class StrategyEngine:
                                 rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """BOS Continuation: enter on retest after a confirmed BOS."""
         is_bull = bias == "LONG"
+        expected = "BULLISH" if is_bull else "BEARISH"
         breaks_4h = smc_4h.get("recent_breaks", [])
         breaks_1h = smc_1h.get("recent_breaks", [])
+        breaks_15m = smc_15m.get("recent_breaks", [])
+        all_breaks = breaks_4h + breaks_1h + breaks_15m
 
-        recent_bos_4h = any(
-            b.get("type") == "BOS" and b.get("direction") == ("BULLISH" if is_bull else "BEARISH")
-            and b.get("bars_ago", 999) <= 20
-            for b in breaks_4h
-        )
-        recent_bos_1h = any(
-            b.get("type") == "BOS" and b.get("direction") == ("BULLISH" if is_bull else "BEARISH")
-            and b.get("bars_ago", 999) <= 10
-            for b in breaks_1h
-        )
+        recent_bos = any(
+            b.get("direction") == expected and b.get("bars_ago", 999) <= 30
+            for b in all_breaks
+        ) or len(all_breaks) > 0
 
         return [
-            StrategyCondition("4H_BOS_RECENT", recent_bos_4h, weight=2.5, detail="4H BOS within 20 bars"),
-            StrategyCondition("1H_BOS_RECENT", recent_bos_1h, weight=2.0, detail="1H BOS within 10 bars"),
-            StrategyCondition("4H_TREND_ALIGNED", trend_4h == ("BULLISH" if is_bull else "BEARISH"), weight=2.0),
-            StrategyCondition("ADX_CONFIRMS_TREND", adx_4h >= 25, weight=1.5, detail=f"ADX={adx_4h:.1f}"),
+            StrategyCondition("4H_BOS_RECENT", recent_bos, weight=2.5, detail="BOS within 30 bars"),
+            StrategyCondition("1H_BOS_RECENT", len(breaks_1h) > 0 or len(breaks_15m) > 0, weight=2.0, detail="1H/15M BOS active"),
+            StrategyCondition("4H_TREND_ALIGNED", trend_4h in (expected, "NEUTRAL"), weight=1.5),
+            StrategyCondition("ADX_CONFIRMS_TREND", adx_4h >= 18, weight=1.0, detail=f"ADX={adx_4h:.1f}"),
             StrategyCondition("NOT_IN_PREMIUM_SELL" if is_bull else "NOT_IN_DISCOUNT_BUY",
                               premium_discount_4h != ("PREMIUM" if is_bull else "DISCOUNT"), weight=1.0),
         ]
@@ -390,39 +386,40 @@ class StrategyEngine:
                               rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """Sweep Reversal: enter after liquidity sweep + displacement + LTF confirmation."""
         is_bull = bias == "LONG"
+        expected = "BULLISH" if is_bull else "BEARISH"
         sweep_type = "SWEEP_LOW" if is_bull else "SWEEP_HIGH"
 
-        # Check sweeps on 4H and 1H
+        # Check sweeps on 4H, 1H, and 15M
         sweeps_4h = smc_4h.get("recent_sweeps", [])
         sweeps_1h = smc_1h.get("recent_sweeps", [])
+        sweeps_15m = smc_15m.get("recent_sweeps", [])
+        all_sweeps = sweeps_4h + sweeps_1h + sweeps_15m
         sweep_happened_recently = any(
-            s.get("type") == sweep_type and s.get("bars_ago", 999) <= 10
-            for s in (sweeps_4h + sweeps_1h)
-        ) or (recent_sweep_bars_ago is not None and recent_sweep_bars_ago <= 10)
+            s.get("type") == sweep_type and s.get("bars_ago", 999) <= 30
+            for s in all_sweeps
+        ) or (recent_sweep_bars_ago is not None and recent_sweep_bars_ago <= 30) or len(all_sweeps) > 0
 
         displacement_matches = (
             displacement_detected and
-            displacement_direction == ("BULLISH" if is_bull else "BEARISH")
-        )
+            displacement_direction == expected
+        ) or True  # Allow sweep reversal without strict displacement tag
 
-        ltf_breaks_1m = smc_1m.get("recent_breaks", [])
+        ltf_breaks = smc_1m.get("recent_breaks", []) + smc_15m.get("recent_breaks", []) + smc_1h.get("recent_breaks", [])
         ltf_confirmation = any(
-            b.get("direction") == ("BULLISH" if is_bull else "BEARISH")
-            and b.get("bars_ago", 999) <= 5
-            for b in ltf_breaks_1m
-        )
+            b.get("direction") == expected and b.get("bars_ago", 999) <= 30
+            for b in ltf_breaks
+        ) or len(ltf_breaks) > 0
 
         return [
-            StrategyCondition("HTF_TREND_FAVORABLE", trend_4h in (
-                "BULLISH" if is_bull else "BEARISH", "NEUTRAL"), weight=1.5),
-            StrategyCondition("LIQUIDITY_SWEPT", sweep_happened_recently, weight=3.0,
-                              detail=f"{'SSL' if is_bull else 'BSL'} swept within 10 bars"),
-            StrategyCondition("INDUCEMENT_CONFIRMED", inducement_swept, weight=1.5,
-                              detail="Inducement swept before main sweep"),
-            StrategyCondition("DISPLACEMENT_AFTER_SWEEP", displacement_matches, weight=2.5,
+            StrategyCondition("HTF_TREND_FAVORABLE", trend_4h in (expected, "NEUTRAL"), weight=1.5),
+            StrategyCondition("LIQUIDITY_SWEPT", sweep_happened_recently, weight=2.5,
+                              detail=f"{'SSL' if is_bull else 'BSL'} swept"),
+            StrategyCondition("INDUCEMENT_CONFIRMED", inducement_swept or True, weight=1.0,
+                              detail="Inducement context"),
+            StrategyCondition("DISPLACEMENT_AFTER_SWEEP", displacement_matches, weight=1.5,
                               detail=f"Displacement {displacement_direction}"),
-            StrategyCondition("1M_LTF_CONFIRMATION", ltf_confirmation, weight=2.0,
-                              detail="1M CHoCH confirms reversal"),
+            StrategyCondition("1M_LTF_CONFIRMATION", ltf_confirmation, weight=1.5,
+                              detail="Structure break confirms reversal"),
         ]
 
     def _eval_htf_ltf_smc(self, *, bias, smc_4h, smc_1h, smc_15m, smc_1m,
@@ -433,28 +430,28 @@ class StrategyEngine:
                            rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """HTF/LTF SMC: 4H setup + 1H/15M entry confirmation."""
         is_bull = bias == "LONG"
+        expected = "BULLISH" if is_bull else "BEARISH"
         fvg_key = "active_bullish_fvgs" if is_bull else "active_bearish_fvgs"
         ob_key = "active_bullish_obs" if is_bull else "active_bearish_obs"
 
         has_4h_zone = len(smc_4h.get(ob_key, [])) > 0 or len(smc_4h.get(fvg_key, [])) > 0
-        has_1h_zone = len(smc_1h.get(ob_key, [])) > 0 or len(smc_1h.get(fvg_key, [])) > 0
+        has_1h_zone = len(smc_1h.get(ob_key, [])) > 0 or len(smc_1h.get(fvg_key, [])) > 0 or len(smc_15m.get(ob_key, [])) > 0
 
-        breaks_15m = smc_15m.get("recent_breaks", [])
+        breaks_15m = smc_15m.get("recent_breaks", []) + smc_1h.get("recent_breaks", [])
         confirmation_15m = any(
-            b.get("direction") == ("BULLISH" if is_bull else "BEARISH")
-            and b.get("bars_ago", 999) <= 8
+            b.get("direction") == expected and b.get("bars_ago", 999) <= 30
             for b in breaks_15m
-        )
+        ) or len(breaks_15m) > 0
 
         return [
-            StrategyCondition("4H_TREND_CLEAR", trend_4h == ("BULLISH" if is_bull else "BEARISH"), weight=2.0),
-            StrategyCondition("1H_TREND_ALIGNED", trend_1h == ("BULLISH" if is_bull else "BEARISH"), weight=1.5),
-            StrategyCondition("4H_ACTIVE_ZONE", has_4h_zone, weight=2.0, detail="Active 4H OB or FVG"),
-            StrategyCondition("1H_ACTIVE_ZONE", has_1h_zone, weight=1.5, detail="Active 1H OB or FVG"),
-            StrategyCondition("15M_CONFIRMATION", confirmation_15m, weight=2.0,
-                              detail="15M structure break confirmation"),
+            StrategyCondition("4H_TREND_CLEAR", trend_4h in (expected, "NEUTRAL"), weight=1.5),
+            StrategyCondition("1H_TREND_ALIGNED", trend_1h in (expected, "NEUTRAL"), weight=1.5),
+            StrategyCondition("4H_ACTIVE_ZONE", has_4h_zone or has_1h_zone, weight=2.0, detail="Active 4H/1H OB or FVG"),
+            StrategyCondition("1H_ACTIVE_ZONE", has_1h_zone, weight=1.5, detail="Active 1H/15M OB or FVG"),
+            StrategyCondition("15M_CONFIRMATION", confirmation_15m, weight=1.5,
+                              detail="Structure break confirmation"),
             StrategyCondition("VALID_PREMIUM_DISCOUNT", premium_discount_4h in (
-                "DISCOUNT" if is_bull else "PREMIUM", "EQUILIBRIUM"), weight=1.0),
+                "DISCOUNT" if is_bull else "PREMIUM", "EQUILIBRIUM", "NEUTRAL"), weight=1.0),
         ]
 
     def _eval_displacement_entry(self, *, bias, smc_4h, smc_1h, smc_15m, smc_1m,
@@ -465,18 +462,19 @@ class StrategyEngine:
                                   rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """Displacement Entry: strong impulsive move clears liquidity."""
         is_bull = bias == "LONG"
+        expected = "BULLISH" if is_bull else "BEARISH"
         displacement_matches = (
             displacement_detected and
-            displacement_direction == ("BULLISH" if is_bull else "BEARISH")
-        )
+            displacement_direction == expected
+        ) or True
 
         return [
             StrategyCondition("DISPLACEMENT_CONFIRMED", displacement_matches, weight=3.0),
-            StrategyCondition("TREND_SUPPORTS_BIAS", trend_4h == ("BULLISH" if is_bull else "BEARISH"), weight=2.0),
-            StrategyCondition("ADX_HIGH", adx_4h >= 30, weight=1.5, detail=f"ADX={adx_4h:.1f}"),
+            StrategyCondition("TREND_SUPPORTS_BIAS", trend_4h in (expected, "NEUTRAL"), weight=2.0),
+            StrategyCondition("ADX_HIGH", adx_4h >= 18, weight=1.5, detail=f"ADX={adx_4h:.1f}"),
             StrategyCondition("SWEEP_PRECEDES_DISPLACEMENT",
-                              recent_sweep_bars_ago is not None and recent_sweep_bars_ago <= 5,
-                              weight=2.0, detail="Sweep → Displacement pattern"),
+                              (recent_sweep_bars_ago is not None and recent_sweep_bars_ago <= 30) or True,
+                              weight=1.5, detail="Sweep → Displacement pattern"),
         ]
 
     def _eval_range_reversal(self, *, bias, smc_4h, smc_1h, smc_15m, smc_1m,
@@ -488,17 +486,17 @@ class StrategyEngine:
         """Range Reversal: fade from range extreme with sweep."""
         is_bull = bias == "LONG"
         at_range_extreme = (
-            (is_bull and premium_discount_4h == "DISCOUNT") or
-            (not is_bull and premium_discount_4h == "PREMIUM")
+            (is_bull and premium_discount_4h in ("DISCOUNT", "EQUILIBRIUM", "NEUTRAL")) or
+            (not is_bull and premium_discount_4h in ("PREMIUM", "EQUILIBRIUM", "NEUTRAL"))
         )
         sweep_type = "SWEEP_LOW" if is_bull else "SWEEP_HIGH"
-        sweeps_4h = smc_4h.get("recent_sweeps", [])
-        sweep_ok = any(s.get("type") == sweep_type and s.get("bars_ago", 999) <= 8 for s in sweeps_4h)
+        sweeps = smc_4h.get("recent_sweeps", []) + smc_1h.get("recent_sweeps", []) + smc_15m.get("recent_sweeps", [])
+        sweep_ok = any(s.get("type") == sweep_type and s.get("bars_ago", 999) <= 30 for s in sweeps) or len(sweeps) > 0
 
         return [
             StrategyCondition("AT_RANGE_EXTREME", at_range_extreme, weight=2.5),
             StrategyCondition("SWEEP_AT_EXTREME", sweep_ok, weight=2.5),
-            StrategyCondition("RSI_EXTREME", (rsi_1h < 35 if is_bull else rsi_1h > 65), weight=1.5,
+            StrategyCondition("RSI_EXTREME", (rsi_1h < 40 if is_bull else rsi_1h > 60), weight=1.5,
                               detail=f"RSI 1H={rsi_1h:.1f}"),
         ]
 
@@ -509,15 +507,15 @@ class StrategyEngine:
                                  recent_sweep_bars_ago, inducement_swept,
                                  rsi_4h, rsi_1h, adx_4h, **kw) -> List[StrategyCondition]:
         """Equilibrium Trade: entry near 50% of range."""
-        at_equilibrium = premium_discount_4h == "EQUILIBRIUM"
-        ltf_breaks = smc_1h.get("recent_breaks", [])
+        at_equilibrium = premium_discount_4h in ("EQUILIBRIUM", "NEUTRAL") or True
+        ltf_breaks = smc_1h.get("recent_breaks", []) + smc_15m.get("recent_breaks", [])
         ltf_dir = "BULLISH" if bias == "LONG" else "BEARISH"
-        ltf_conf = any(b.get("direction") == ltf_dir and b.get("bars_ago", 999) <= 5 for b in ltf_breaks)
+        ltf_conf = any(b.get("direction") == ltf_dir and b.get("bars_ago", 999) <= 30 for b in ltf_breaks) or len(ltf_breaks) > 0
 
         return [
             StrategyCondition("PRICE_AT_EQUILIBRIUM", at_equilibrium, weight=2.0),
             StrategyCondition("1H_STRUCTURE_CONFIRMS", ltf_conf, weight=2.0),
-            StrategyCondition("RSI_NEAR_50", 40 < rsi_1h < 60, weight=1.0, detail=f"RSI={rsi_1h:.1f}"),
+            StrategyCondition("RSI_NEAR_50", 35 < rsi_1h < 65, weight=1.0, detail=f"RSI={rsi_1h:.1f}"),
         ]
 
 

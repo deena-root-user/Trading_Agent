@@ -122,7 +122,7 @@ class PaxisAgent:
             minutes=settings.trade_cycle_minutes,
             id="main_cycle",
             next_run_time=datetime.now(timezone.utc),  # Run immediately on start
-            max_instances=3,
+            max_instances=1,
             coalesce=True,
             misfire_grace_time=120,
         )
@@ -137,7 +137,7 @@ class PaxisAgent:
             minutes=cycle_mins,
             id="auto_scalp_cycle",
             next_run_time=auto_scalp_start,
-            max_instances=3,
+            max_instances=1,
             coalesce=True,
             misfire_grace_time=120,
         )
@@ -958,13 +958,30 @@ class PaxisAgent:
         bid = tick.bid if tick is not None else entry_price
         ask = tick.ask if tick is not None else entry_price
 
+        m1_atr_val = snap_m1.atr if snap_m1 and snap_m1.atr > 0 else 1.0
+        atr_buffer = m1_atr_val * 0.35
+
         if decision.action == "BUY":
             entry_price = ask
-            fixed_sl = bid - sl_dist
+            base_sl = bid - sl_dist
+            ob_bottom = snap_m1.smc_ob_bottom if (snap_m1 and snap_m1.smc_order_block == "BULLISH_OB") else 0.0
+            if snap_m5 and snap_m5.smc_order_block == "BULLISH_OB":
+                ob_bottom = snap_m5.smc_ob_bottom
+            if ob_bottom > 0 and ob_bottom < entry_price:
+                fixed_sl = min(base_sl, ob_bottom - atr_buffer)
+            else:
+                fixed_sl = base_sl
             fixed_tp = ask + tp_dist
         else:  # SELL
             entry_price = bid
-            fixed_sl = ask + sl_dist
+            base_sl = ask + sl_dist
+            ob_top = snap_m1.smc_ob_top if (snap_m1 and snap_m1.smc_order_block == "BEARISH_OB") else 0.0
+            if snap_m5 and snap_m5.smc_order_block == "BEARISH_OB":
+                ob_top = snap_m5.smc_ob_top
+            if ob_top > 0 and ob_top > entry_price:
+                fixed_sl = max(base_sl, ob_top + atr_buffer)
+            else:
+                fixed_sl = base_sl
             fixed_tp = bid - tp_dist
 
         digits = 2 if is_gold else (3 if "JPY" in sym_upper else 5)
