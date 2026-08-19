@@ -218,7 +218,7 @@ class OllamaClient:
                     fallback_payload["options"] = {
                         "temperature": 0.2,
                         "top_p": 0.8,
-                        "num_predict": 512,
+                        "num_predict": 1024,
                         "num_ctx": 4096,
                     }
 
