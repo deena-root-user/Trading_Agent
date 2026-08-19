@@ -37,29 +37,29 @@ REGIME_STRATEGY_MAP: Dict[str, Dict[str, List[str]]] = {
         "forbidden": ["RANGE_REVERSAL"],
     },
     "PULLBACK_RETRACEMENT": {
-        "allowed": ["FVG_RETRACEMENT", "OB_REACTION", "HTF_LTF_SMC", "SWEEP_REVERSAL"],
-        "forbidden": [],
+        "allowed": ["FVG_PULLBACK", "FVG_RETRACEMENT", "HTF_LTF_SMC"],
+        "forbidden": ["OB_REACTION", "SWEEP_REVERSAL"],
     },
     "RANGING": {
-        "allowed": ["RANGE_REVERSAL", "SWEEP_REVERSAL", "EQUILIBRIUM_TRADE"],
+        "allowed": ["RANGE_REVERSAL", "EQUILIBRIUM_TRADE"],
         "forbidden": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY"],
     },
     "COMPRESSING": {
-        "allowed": ["RANGE_REVERSAL", "SWEEP_REVERSAL", "OB_REACTION", "FVG_PULLBACK"],
+        "allowed": ["RANGE_REVERSAL", "OB_REACTION", "FVG_PULLBACK"],
         "forbidden": [],
     },
     "VOLATILE_EXPANSION": {
-        "allowed": ["SWEEP_REVERSAL", "DISPLACEMENT_ENTRY"],
+        "allowed": ["DISPLACEMENT_ENTRY"],
         "forbidden": [],
     },
     "UNCERTAIN": {
-        "allowed": ["OB_REACTION", "FVG_PULLBACK", "HTF_LTF_SMC", "SWEEP_REVERSAL", "BOS_CONTINUATION"],
-        "forbidden": [],
+        "allowed": [],
+        "forbidden": ["OB_REACTION", "FVG_PULLBACK", "HTF_LTF_SMC", "SWEEP_REVERSAL", "BOS_CONTINUATION"],
     },
 }
 
 # Regimes that immediately produce NO_TRADE
-NO_TRADE_REGIMES = set()
+NO_TRADE_REGIMES = {"UNCERTAIN"}
 
 
 @dataclass

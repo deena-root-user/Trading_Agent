@@ -285,6 +285,17 @@ class BacktestEngine:
                         exit_price = ot.tp2_price
                         exit_reason = "TP2_HIT"
 
+                # Check stall exit (35 bars = ~8.75 hours without expansion)
+                if exit_price is None and (bar_idx - ot.entry_bar_idx >= 35):
+                    if ot.direction in ("BUY", "LONG"):
+                        pnl_pts = current_price - ot.entry_price
+                    else:
+                        pnl_pts = ot.entry_price - current_price
+                    pnl_r = (pnl_pts / ot.risk_points) if ot.risk_points > 0 else 0.0
+                    if -0.5 <= pnl_r <= 0.5:
+                        exit_price = current_price
+                        exit_reason = "STALL_TIMEOUT"
+
                 if exit_price is not None:
                     if ot.direction in ("BUY", "LONG"):
                         pnl_points = exit_price - ot.entry_price
