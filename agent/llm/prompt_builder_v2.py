@@ -23,7 +23,21 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, List, Optional
+import numpy as np
 from loguru import logger
+
+
+def json_serializer(o: Any) -> Any:
+    """Robust JSON serializer for numpy and custom types."""
+    if isinstance(o, (np.bool_, bool)):
+        return bool(o)
+    if isinstance(o, (np.integer, int)):
+        return int(o)
+    if isinstance(o, (np.floating, float)):
+        return float(o)
+    if isinstance(o, np.ndarray):
+        return o.tolist()
+    return str(o)
 
 
 SYSTEM_PROMPT_DEEPSEEK_R1 = """You are PAXIS, an elite institutional SMC (Smart Money Concepts) trade validator.
@@ -140,7 +154,7 @@ Be the devil's advocate — assume the market wants to trap retail traders here.
 
         user_message = (
             f"VALIDATE this {direction} setup for {symbol}:\n\n"
-            f"{json.dumps(context, indent=2, ensure_ascii=False)}\n\n"
+            f"{json.dumps(context, indent=2, ensure_ascii=False, default=json_serializer)}\n\n"
             f"Apply full SMC reasoning. Output only valid JSON."
         )
 

@@ -187,7 +187,7 @@ class SMCData:
                     "bottom": round(ob.bottom, 5),
                     "midpoint": round(ob.midpoint, 5),
                     "age_bars": ob.age_bars,
-                    "price_is_inside": ob.bottom <= self.last_close <= ob.top,
+                    "price_is_inside": bool(ob.bottom <= self.last_close <= ob.top),
                     "distance_points": round(abs(ob.distance_to(self.last_close)), 5),
                 }
                 for ob in sorted(active_obs, key=lambda x: abs(x.distance_to(self.last_close)))
@@ -199,7 +199,7 @@ class SMCData:
                     "bottom": round(ob.bottom, 5),
                     "midpoint": round(ob.midpoint, 5),
                     "age_bars": ob.age_bars,
-                    "price_is_inside": ob.bottom <= self.last_close <= ob.top,
+                    "price_is_inside": bool(ob.bottom <= self.last_close <= ob.top),
                     "distance_points": round(abs(ob.distance_to(self.last_close)), 5),
                 }
                 for ob in sorted(active_obs, key=lambda x: abs(x.distance_to(self.last_close)))
@@ -215,7 +215,7 @@ class SMCData:
                     "size": round(fvg.size, 5),
                     "fill_pct": round(fvg.fill_pct, 2),
                     "age_bars": fvg.age_bars,
-                    "price_is_inside": fvg.bottom <= self.last_close <= fvg.top,
+                    "price_is_inside": bool(fvg.bottom <= self.last_close <= fvg.top),
                 }
                 for fvg in active_fvgs_list if fvg.is_bullish
             ][-3:],
@@ -227,7 +227,7 @@ class SMCData:
                     "size": round(fvg.size, 5),
                     "fill_pct": round(fvg.fill_pct, 2),
                     "age_bars": fvg.age_bars,
-                    "price_is_inside": fvg.bottom <= self.last_close <= fvg.top,
+                    "price_is_inside": bool(fvg.bottom <= self.last_close <= fvg.top),
                 }
                 for fvg in active_fvgs_list if not fvg.is_bullish
             ][-3:],
