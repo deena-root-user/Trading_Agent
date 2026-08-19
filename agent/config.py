@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     confluence_threshold: float = 0.60
     confluence_critic_threshold: float = Field(0.85, description="Confluence score above which critic is bypassed")
     use_adversarial_critic: bool = Field(True, description="Enable adversarial critic on borderline setups")
-    max_num_predict_tokens: int = Field(384, description="Max tokens LLM generates per response")
+    max_num_predict_tokens: int = Field(1024, description="Max tokens LLM generates per response")
     num_ctx_tokens: int = Field(4096, description="Context window size for LLM (fits 100% in GPU VRAM)")
 
     # ── Risk ──────────────────────────────────────────────────────────────────

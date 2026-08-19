@@ -259,14 +259,17 @@ class DecisionParser:
 
                 effective_atr = atr if (atr is not None and atr > 0) else (default_sl_pips * pip_size / 2.0)
 
-                # If entry is positive and SL/TP are missing, calculate them
+                # If entry is positive and SL/TP are missing or invalid R:R, calculate/upgrade them
                 if entry > 0:
                     if sl <= 0:
                         sl = entry - (2.0 * effective_atr) if action == "BUY" else entry + (2.0 * effective_atr)
-                    if tp <= 0:
-                        sl_dist = abs(entry - sl)
-                        tp_dist = sl_dist * 1.5
-                        tp = entry + tp_dist if action == "BUY" else entry - tp_dist
+                    
+                    sl_dist = abs(entry - sl)
+                    if sl_dist > 0:
+                        current_rr = abs(tp - entry) / sl_dist if tp > 0 else 0.0
+                        if tp <= 0 or current_rr < 1.50:
+                            tp_dist = sl_dist * 1.50
+                            tp = entry + tp_dist if action == "BUY" else entry - tp_dist
 
                     # Round values to symbol's digit precision
                     entry = round(entry, digits)
@@ -411,7 +414,84 @@ class DecisionParser:
         except json.JSONDecodeError:
             pass
 
+        # Strategy 4: Truncated JSON repair (for LLM max prediction token hits)
+        repaired = self._repair_truncated_json(text)
+        if repaired:
+            return repaired
+
         return None
+
+    def _repair_truncated_json(self, text: str) -> Optional[dict]:
+        """Repair truncated JSON strings caused by LLM token limits."""
+        idx = text.find("{")
+        if idx == -1:
+            return None
+        candidate = text[idx:].strip()
+
+        open_brackets = []
+        in_string = False
+        escape = False
+
+        for ch in candidate:
+            if escape:
+                escape = False
+                continue
+            if ch == '\\':
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+                continue
+            if not in_string:
+                if ch in ('{', '['):
+                    open_brackets.append(ch)
+                elif ch in ('}', ']'):
+                    if open_brackets:
+                        open_brackets.pop()
+
+        repair = candidate
+        if in_string:
+            repair += '"'
+
+        for b in reversed(open_brackets):
+            if b == '{':
+                repair += '}'
+            elif b == '[':
+                repair += ']'
+
+        try:
+            return json.loads(repair)
+        except Exception:
+            # Fallback: Regex field extraction
+            res = {}
+            act = re.search(r'"action"\s*:\s*"([^"]+)"', candidate, re.I)
+            if act:
+                res["action"] = act.group(1).upper()
+            conf = re.search(r'"confidence"\s*:\s*([0-9\.]+)', candidate, re.I)
+            if conf:
+                try:
+                    res["confidence"] = float(conf.group(1))
+                except ValueError:
+                    pass
+            entry = re.search(r'"entry"\s*:\s*([0-9\.]+)', candidate, re.I)
+            if entry:
+                try:
+                    res["entry"] = float(entry.group(1))
+                except ValueError:
+                    pass
+            sl = re.search(r'"sl"\s*:\s*([0-9\.]+)', candidate, re.I)
+            if sl:
+                try:
+                    res["sl"] = float(sl.group(1))
+                except ValueError:
+                    pass
+            tp = re.search(r'"tp"\s*:\s*([0-9\.]+)', candidate, re.I)
+            if tp:
+                try:
+                    res["tp"] = float(tp.group(1))
+                except ValueError:
+                    pass
+            return res if res else None
 
     def _hold(self, symbol: str, reason: str, raw: str) -> TradeDecision:
         """Return a forced HOLD decision with error info."""
