@@ -342,6 +342,17 @@ class OllamaClient:
                 f"elapsed={elapsed:.2f}s | tokens={tokens}"
             )
             return content
+        except httpx.HTTPStatusError as exc:
+            err_text = ""
+            if exc.response is not None:
+                try:
+                    err_text = exc.response.text
+                except Exception:
+                    err_text = str(exc)
+            else:
+                err_text = str(exc)
+            logger.error(f"Remote LLM API HTTP Error ({model_name}): {err_text}")
+            return None
         except Exception as exc:
             logger.error(f"Remote LLM API error ({model_name}): {exc}")
             return None
