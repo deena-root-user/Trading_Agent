@@ -83,6 +83,15 @@ class OllamaClient:
         Thread-safe: acquires self._lock to prevent concurrent GPU/stdout collisions.
         """
         with self._lock:
+            # Check if remote API is requested (use_local_ollama=False or llm_provider="api")
+            use_local = getattr(settings, "use_local_ollama", True)
+            provider = str(getattr(settings, "llm_provider", "ollama")).lower()
+            if not use_local or provider == "api":
+                remote_res = self._chat_remote_api(messages, temperature, top_p)
+                if remote_res is not None:
+                    return remote_res
+                logger.warning("Remote API failed — falling back to local Ollama")
+
             url = f"{self.base_url}/api/chat"
             active_model = self._resolve_model()
             
@@ -277,8 +286,72 @@ class OllamaClient:
         except Exception:
             pass
 
+    def _chat_remote_api(
+        self,
+        messages: List[Dict[str, Any]],
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+    ) -> Optional[str]:
+        """
+        Send chat completions request to a remote OpenAI-compatible API endpoint.
+        Provides ultra-fast (1-3 second) response times.
+        """
+        base_url = getattr(settings, "llm_api_base_url", "https://api.deepseek.com/v1").rstrip("/")
+        api_key = getattr(settings, "llm_api_key", "").strip()
+        model_name = getattr(settings, "llm_api_model", "deepseek-chat")
+
+        if not api_key:
+            logger.warning("LLM_API_KEY is not configured in environment! Falling back to local Ollama.")
+            return None
+
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        formatted_messages = []
+        for msg in messages:
+            msg_copy = {"role": msg.get("role", "user"), "content": str(msg.get("content", ""))}
+            formatted_messages.append(msg_copy)
+
+        payload = {
+            "model": model_name,
+            "messages": formatted_messages,
+            "temperature": temperature if temperature is not None else getattr(settings, "ollama_temperature", 0.1),
+            "max_tokens": getattr(settings, "max_num_predict_tokens", 1024),
+        }
+
+        start = time.time()
+        logger.info(f"🌐 Calling Remote LLM API ({model_name} at {base_url})...")
+
+        try:
+            timeout_sec = float(getattr(settings, "inference_timeout_seconds", 60))
+            with httpx.Client(timeout=timeout_sec) as client:
+                resp = client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+
+            elapsed = time.time() - start
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            tokens = data.get("usage", {}).get("completion_tokens", 0)
+
+            self._log_raw(content, elapsed)
+            logger.info(
+                f"⚡ Remote LLM response completed | model={model_name} | "
+                f"elapsed={elapsed:.2f}s | tokens={tokens}"
+            )
+            return content
+        except Exception as exc:
+            logger.error(f"Remote LLM API error ({model_name}): {exc}")
+            return None
+
     def is_available(self) -> bool:
-        """Quick health check — returns True if Ollama is reachable."""
+        """Quick health check — returns True if Ollama or Remote API is reachable."""
+        use_local = getattr(settings, "use_local_ollama", True)
+        provider = str(getattr(settings, "llm_provider", "ollama")).lower()
+        if not use_local or provider == "api":
+            return bool(getattr(settings, "llm_api_key", "").strip())
         try:
             with httpx.Client(timeout=5) as client:
                 resp = client.get(f"{self.base_url}/api/tags")

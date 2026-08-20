@@ -38,7 +38,13 @@ class Settings(BaseSettings):
     def pairs_list(self) -> List[str]:
         return [p.strip() for p in self.trading_pairs.split(",") if p.strip()]
 
-    # ── Ollama / LLM ──────────────────────────────────────────────────────────
+    # ── Ollama / LLM / Remote API Options ──────────────────────────────────────
+    use_local_ollama: bool = Field(False, description="true = use local Ollama GPU, false = use remote LLM API")
+    llm_provider: str = Field("api", description="'ollama' or 'api'")
+    llm_api_key: str = Field("sk-b56ecc128d7cca90-e880a8-a1f43d23", description="API Key for remote OpenAI-compatible LLM endpoint")
+    llm_api_base_url: str = Field("https://api.deepseek.com/v1", description="Base URL for remote OpenAI-compatible API")
+    llm_api_model: str = Field("deepseek-chat", description="Model name for remote LLM API")
+
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = Field("qwen2.5:14b", description="Primary decision model — Qwen 2.5 14B precision trading model")
     ollama_fallback_model: str = Field("qwen2.5:3b", description="Fallback model if primary times out")
