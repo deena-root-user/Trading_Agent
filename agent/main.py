@@ -93,14 +93,22 @@ class PaxisAgent:
             self_evolution_engine.purge_test_trades()
         except Exception as exc:
             logger.error(f"Error purging test trades on startup: {exc}")
+        use_local = getattr(settings, "use_local_ollama", True)
+        provider = str(getattr(settings, "llm_provider", "ollama")).lower()
+        if not use_local or provider == "api":
+            model_display = f"Remote API ({settings.llm_api_model})"
+        else:
+            model_display = f"Local Ollama ({settings.ollama_model})"
+
         logger.info(
             f"{'='*50}\n"
             f"  PAXIS Agent Starting\n"
             f"  Mode: {'DRY RUN 🧪' if settings.dry_run else 'LIVE 🔴'}\n"
-            f"  Model: {settings.ollama_model}\n"
+            f"  LLM Provider: {model_display}\n"
+            f"  Pro Trader Mode: {'✅ ON (4H/1H/15M/1M SMC)' if settings.pro_trader_mode else 'OFF'}\n"
             f"  Pairs: {settings.trading_pairs}\n"
             f"  Cycle: every {settings.trade_cycle_minutes} min\n"
-            f"  Auto-Scalp: {'✅ ON — every 3 min' if settings.auto_scalp_mode else '⏸ OFF'}\n"
+            f"  Auto-Scalp: {'✅ ON — every 3 min' if settings.auto_scalp_mode else '⏸ OFF (Pro Trader Active)'}\n"
             f"{'='*50}"
         )
 
@@ -149,9 +157,15 @@ class PaxisAgent:
         signal.signal(signal.SIGTERM, self._shutdown_handler)
 
         logger.info("Agent running — press Ctrl+C to stop")
+        last_heartbeat = time.time()
         try:
             while True:
                 time.sleep(1)
+                if time.time() - last_heartbeat >= 60:
+                    last_heartbeat = time.time()
+                    job = self._scheduler.get_job("main_cycle")
+                    next_run = job.next_run_time.strftime("%H:%M:%S UTC") if job and job.next_run_time else "soon"
+                    logger.info(f"⏳ PAXIS Agent active | Pro Trader Mode: ON | Next cycle scheduled at {next_run}")
         except (KeyboardInterrupt, SystemExit):
             self._shutdown()
 
