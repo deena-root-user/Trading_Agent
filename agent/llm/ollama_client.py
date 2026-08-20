@@ -318,6 +318,7 @@ class OllamaClient:
         payload = {
             "model": model_name,
             "messages": formatted_messages,
+            "stream": False,
             "temperature": temperature if temperature is not None else getattr(settings, "ollama_temperature", 0.1),
             "max_tokens": getattr(settings, "max_num_predict_tokens", 1024),
         }
@@ -330,12 +331,33 @@ class OllamaClient:
             with httpx.Client(timeout=timeout_sec) as client:
                 resp = client.post(url, json=payload, headers=headers)
                 resp.raise_for_status()
-                data = resp.json()
+
+                content_type = resp.headers.get("content-type", "")
+                content = ""
+                tokens = 0
+
+                if "text/event-stream" in content_type or resp.text.strip().startswith("data:"):
+                    chunks = []
+                    for line in resp.text.splitlines():
+                        line = line.strip()
+                        if line.startswith("data:"):
+                            data_str = line[5:].strip()
+                            if data_str == "[DONE]":
+                                continue
+                            try:
+                                chunk_obj = json.loads(data_str)
+                                delta = chunk_obj.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                                if delta:
+                                    chunks.append(delta)
+                            except Exception:
+                                pass
+                    content = "".join(chunks)
+                else:
+                    data = resp.json()
+                    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    tokens = data.get("usage", {}).get("completion_tokens", 0)
 
             elapsed = time.time() - start
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            tokens = data.get("usage", {}).get("completion_tokens", 0)
-
             self._log_raw(content, elapsed)
             logger.info(
                 f"⚡ Remote LLM response completed | model={model_name} | "
