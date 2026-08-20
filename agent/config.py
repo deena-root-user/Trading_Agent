@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     llm_provider: str = Field("api", description="'ollama' or 'api'")
     llm_api_key: str = Field("sk-b56ecc128d7cca90-e880a8-a1f43d23", description="API Key for OmniRoute AI Gateway")
     llm_api_base_url: str = Field("http://34.93.80.53:20128/v1", description="Base URL for OmniRoute AI Gateway")
-    llm_api_model: str = Field("zm/deepseek/deepseek-chat", description="Model name for OmniRoute AI Gateway")
+    llm_api_model: str = Field("kr/claude-sonnet-4.5", description="Model name for OmniRoute AI Gateway (Kiro AI Claude Sonnet 4.5)")
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = Field("qwen2.5:14b", description="Primary decision model — Qwen 2.5 14B precision trading model")
