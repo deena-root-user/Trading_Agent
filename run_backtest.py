@@ -18,6 +18,10 @@ logger.remove()
 logger.add(sys.stderr, level="INFO")
 
 from agent.backtest.engine import BacktestEngine, BacktestConfig, run_walk_forward
+from agent.data.mt5_feed import mt5_feed
+
+# Isolate backtesting from live MT5 network calls
+mt5_feed.set_backtest_mode(True)
 
 
 def load_mt5_csv(filepath: str) -> pd.DataFrame:
@@ -110,9 +114,12 @@ def main():
         max_open_trades=1,
         spread_pips=2.0,
         min_rr_ratio=1.5,
-        confluence_threshold=0.60,
+        confluence_threshold=0.65,          # High-precision A+ institutional setup threshold
+        min_bars_between_trades=5,          # Minimum 5 bars between trades for optimal frequency
         use_partial_exits=True,
         primary_tf=primary_tf,
+        strategy_mode=True,                 # Pure deterministic — no LLM/API
+        blocked_hours_utc=[],               # Scan 24/7 across all active market sessions
     )
 
     engine = BacktestEngine(config)
@@ -129,6 +136,10 @@ def main():
     # ── Permanently save backtest results to JSON ───────────────────────────
     import json
     save_data = {
+        "live_ready": results.live_ready,
+        "initial_balance": results.metrics.initial_balance,
+        "final_equity": results.metrics.final_equity,
+        "net_roi_pct": results.metrics.roi_pct,
         "summary": results.metrics.summary(),
         "regime_performance": results.metrics.regime_performance,
         "strategy_performance": results.metrics.strategy_performance,
@@ -136,6 +147,8 @@ def main():
         "win_rate": results.metrics.win_rate,
         "profit_factor": results.metrics.profit_factor,
         "net_pnl": results.metrics.total_pnl,
+        "max_drawdown_usd": results.metrics.max_drawdown_usd,
+        "max_drawdown_pct": results.metrics.max_drawdown_pct,
         "timeframe_coverage": {
             "4H_bars": len(df_4h),
             "1H_bars": len(df_1h),

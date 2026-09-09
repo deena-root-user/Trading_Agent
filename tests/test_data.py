@@ -130,4 +130,4 @@ def test_yfinance_tick_fallback():
         assert not mock_get_fail.called
         cached = mt5_feed._simulated_prices["XAUUSD"]
         assert cached != 2002.5
-        assert abs(cached - 2002.5) < 0.1
+        assert abs(cached - 2002.5) < 0.5

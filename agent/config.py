@@ -57,12 +57,16 @@ class Settings(BaseSettings):
     enable_vision: bool = Field(False, description="Vision disabled in Pro Trader mode — using structured JSON data")
     vision_timeout_seconds: int = Field(60, description="Timeout for vision LLM requests before text fallback")
 
+    # ── Strategy Mode (Pure Deterministic — No LLM/API) ──────────────────────
+    strategy_mode: bool = Field(False, description="When True, skip ALL LLM/Ollama/API calls — use only deterministic strategy conditions (regime + strategy + validator + confluence). Best for backtesting and pure mechanical execution.")
+
     # ── Analysis Engine ────────────────────────────────────────────────────────
-    confluence_llm_threshold: float = Field(0.50, description="Minimum confluence score to call LLM")
+    confluence_llm_threshold: float = Field(0.60, description="Minimum confluence score to call LLM analysis")
+    confluence_api_threshold: float = Field(0.65, description="Minimum confluence score to route to Remote API (60%-65% uses local Ollama)")
     confluence_threshold: float = 0.60
     confluence_critic_threshold: float = Field(0.85, description="Confluence score above which critic is bypassed")
     use_adversarial_critic: bool = Field(True, description="Enable adversarial critic on borderline setups")
-    max_num_predict_tokens: int = Field(1024, description="Max tokens LLM generates per response")
+    max_num_predict_tokens: int = Field(2048, description="Max tokens LLM generates per response")
     num_ctx_tokens: int = Field(4096, description="Context window size for LLM (fits 100% in GPU VRAM)")
 
     # ── Risk ──────────────────────────────────────────────────────────────────
@@ -74,11 +78,30 @@ class Settings(BaseSettings):
     enforce_trend_alignment: bool = Field(True, description="Require H1 and H4 EMA trend alignment before trade entry")
     disable_risk_gate: bool = Field(False, description="Completely bypass and disable all risk gate checks")
     min_confidence: float = 0.70
+    enable_focus_mode: bool = Field(True, description="Enable High Focus Mode elevation on consecutive losses")
     max_open_trades: int = 2
     max_spread_pips: float = 3.0
     max_daily_loss_usd: float = 50.0
     min_rr_ratio: float = Field(2.0, description="Minimum R:R ratio — Pro Trader mode requires 2.0")
     news_blackout_minutes: int = 30
+    require_candle_close_confirmation: bool = Field(True, description="Only enter trades when the 1M candle has just closed (within first 25s of new candle). Prevents mid-candle wick entries.")
+    candle_close_window_seconds: int = Field(25, description="Max allowed seconds into new 1M candle for entry execution (default 25s)")
+    progressive_breakeven: bool = Field(True, description="Enable progressive profit-locking SL ratchet instead of single-step breakeven")
+    breakeven_trigger_r: float = Field(0.5, description="Trigger first breakeven at this R-multiple (e.g., 0.5 = +0.5R)")
+    profit_lock_steps: str = Field("0.5:0.0,1.0:0.25,1.5:0.5,2.0:1.0,2.5:1.5", description="Progressive SL steps as 'trigger_R:lock_R' pairs")
+    target_open_pnl_cutoff: float = Field(0.0, description="Target total open PnL cutoff USD to close all positions to lock profit")
+    protect_trade1_on_trade2: bool = Field(True, description="Move Trade 1 to breakeven when Trade 2 is opened")
+    require_candle_close_confirm: bool = Field(True, description="Only enter trade on candle close confirmation")
+    basket_target_profit_usd: float = Field(0.0, description="Alias for basket hard target profit USD")
+    basket_soft_target_usd: float = Field(15.0, description="When total floating PnL >= this, tighten all SLs to lock current profit (don't close). 0.0=disabled")
+    basket_hard_target_usd: float = Field(25.0, description="When total floating PnL >= this, close ALL positions immediately. 0.0=disabled")
+    basket_soft_loss_cutoff_usd: float = Field(10.0, description="Soft loss cutoff USD ($10-$12). Evaluates pullback probability before cutting loss. Closes if low prob, holds if high prob.")
+    basket_sl_loss_usd: float = Field(20.0, description="When total floating loss <= -this, close ALL positions immediately. 0.0=disabled")
+    second_trade_confluence_boost: float = Field(0.10, description="Extra confluence score required for 2nd trade when 1st trade is in profit")
+    second_trade_lock_first_profit: bool = Field(True, description="When opening 2nd trade, auto-tighten SL on 1st profitable trade to lock profit")
+    max_trade_risk_percent: float = Field(2.0, description="Max allowed risk percent of account balance per trade")
+    max_micro_account_loss_usd: float = Field(1.50, description="Hard USD risk cap per trade for accounts under $50 USD")
+    counter_trend_min_confluence: float = Field(0.75, description="Min confluence required for counter-trend trades when 4H opposes")
 
     # ── Scalping ──────────────────────────────────────────────────────────────
     scalping_mode: bool = Field(True, description="Enable specialized scalping mode for tight short-term trades")
@@ -105,13 +128,16 @@ class Settings(BaseSettings):
 
     # ── Scheduler ─────────────────────────────────────────────────────────────
     trade_cycle_minutes: int = 5
-    position_poll_seconds: int = 30
+    position_poll_seconds: int = 5
 
     # ── Sessions (UTC, "HH:MM") ───────────────────────────────────────────────
+    enforce_session_hours: bool = Field(False, description="When False (default for 24/5 XAUUSD), trades 24 hours Mon-Fri including Asian session. Set True to strictly enforce London/NY hours.")
+    asian_session_start: str = "22:00"
+    asian_session_end: str = "07:00"
     london_session_start: str = "07:00"
-    london_session_end: str = "12:00"
-    ny_session_start: str = "13:00"
-    ny_session_end: str = "17:00"
+    london_session_end: str = "16:00"
+    ny_session_start: str = "12:00"
+    ny_session_end: str = "21:00"
 
     # ── Telegram ──────────────────────────────────────────────────────────────
     telegram_bot_token: str = ""

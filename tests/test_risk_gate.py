@@ -106,93 +106,105 @@ def test_risk_gate_daily_loss_limit():
     assert any("DAILY_LOSS_LIMIT" in f for f in res.failed_checks)
 
 def test_risk_gate_all_pass():
-    res = risk_gate.check(
-        symbol="EURUSD",
-        action="BUY",
-        confidence=0.85,
-        entry=1.08500,
-        sl=1.08300,
-        tp=1.08800,
-        rr_ratio=1.5,
-        spread_pips=1.2,
-        open_positions=[]
-    )
-    assert res.passed
-    assert len(res.failed_checks) == 0
+    old_pt = settings.pro_trader_mode
+    settings.pro_trader_mode = False
+    try:
+        res = risk_gate.check(
+            symbol="EURUSD",
+            action="BUY",
+            confidence=0.85,
+            entry=1.08500,
+            sl=1.08300,
+            tp=1.08800,
+            rr_ratio=1.5,
+            spread_pips=1.2,
+            open_positions=[]
+        )
+        assert res.passed
+        assert len(res.failed_checks) == 0
+    finally:
+        settings.pro_trader_mode = old_pt
 
 def test_risk_gate_trend_misalignment():
     # Enforce trend alignment
     settings.enforce_trend_alignment = True
-    
-    # BUY should be blocked if H1 or H4 trend is bearish
-    res = risk_gate.check(
-        symbol="EURUSD",
-        action="BUY",
-        confidence=0.85,
-        entry=1.08500,
-        sl=1.08300,
-        tp=1.08800,
-        rr_ratio=1.5,
-        spread_pips=1.2,
-        open_positions=[],
-        h1_trend="BEARISH",
-        h4_trend="BULLISH"
-    )
-    assert not res.passed
-    assert any("TREND_MISALIGNMENT" in f for f in res.failed_checks)
+    old_pt = settings.pro_trader_mode
+    settings.pro_trader_mode = False
+    try:
+        # BUY should be blocked if H1 or H4 trend is bearish
+        res = risk_gate.check(
+            symbol="EURUSD",
+            action="BUY",
+            confidence=0.85,
+            entry=1.08500,
+            sl=1.08300,
+            tp=1.08800,
+            rr_ratio=1.5,
+            spread_pips=1.2,
+            open_positions=[],
+            h1_trend="BEARISH",
+            h4_trend="BULLISH"
+        )
+        assert not res.passed
+        assert any("TREND_MISALIGNMENT" in f for f in res.failed_checks)
+    finally:
+        settings.pro_trader_mode = old_pt
 
 def test_risk_gate_dynamic_lot_sizing(monkeypatch):
     settings.use_dynamic_risk = True
     settings.risk_percent = 1.0 # Risk 1% of account
+    old_pt = settings.pro_trader_mode
+    settings.pro_trader_mode = False
     
     # Mock mt5_feed.get_account_balance to return 10000.0 deterministically
     from agent.data.mt5_feed import mt5_feed
     monkeypatch.setattr(mt5_feed, "get_account_balance", lambda: 10000.0)
     
-    # Mock account balance = 10,000 USD. Risk 1% = 100 USD.
-    # Entry = 1.08500, SL = 1.08300 -> SL distance = 20 pips.
-    # Standard 1 lot = $10 per pip. 20 pips at $10/pip = $200 per lot.
-    # To risk $100, lot size = 100 / 200 = 0.50 lots.
-    # Let's run check
-    res = risk_gate.check(
-        symbol="EURUSD",
-        action="BUY",
-        confidence=0.85,
-        entry=1.08500,
-        sl=1.08300,
-        tp=1.08800,
-        rr_ratio=1.5,
-        spread_pips=1.2,
-        open_positions=[],
-        h1_trend="BULLISH",
-        h4_trend="BULLISH"
-    )
-    # The check returns calculated_lot. Under stub feed (MT5 not loaded), balance defaults to 10000.0.
-    # So calculated lot size should be 0.50.
-    assert res.calculated_lot == 0.50
+    try:
+        res = risk_gate.check(
+            symbol="EURUSD",
+            action="BUY",
+            confidence=0.85,
+            entry=1.08500,
+            sl=1.08300,
+            tp=1.08800,
+            rr_ratio=1.5,
+            spread_pips=1.2,
+            open_positions=[],
+            h1_trend="BULLISH",
+            h4_trend="BULLISH"
+        )
+        assert res.calculated_lot == 0.50
+    finally:
+        settings.pro_trader_mode = old_pt
 
 
 def test_risk_gate_scalping_rules():
     settings.scalping_mode = True
     settings.enforce_trend_alignment = True
+    old_pt = settings.pro_trader_mode
+    settings.pro_trader_mode = False
 
-    # 1. R:R check relaxation:
-    # Under scalping mode, R:R of 0.50 (low R:R) is allowed (min_rr_ratio is 1.5, but in scalping mode 0.3 is the limit).
-    res = risk_gate.check(
-        symbol="XAUUSD",
-        action="BUY",
-        confidence=0.85,
-        entry=2400.00,
-        sl=2398.00,
-        tp=2401.00,
-        rr_ratio=0.50, # 1:2 R:R
-        spread_pips=1.2,
-        open_positions=[],
-        h1_trend="BULLISH", # M5 trend
-        h4_trend="BULLISH"  # M15 trend
-    )
-    assert res.passed
-    assert len(res.failed_checks) == 0
+    try:
+        # 1. R:R check relaxation:
+        # Under scalping mode, R:R of 0.50 (low R:R) is allowed (min_rr_ratio is 1.5, but in scalping mode 0.3 is the limit).
+        res = risk_gate.check(
+            symbol="XAUUSD",
+            action="BUY",
+            confidence=0.85,
+            entry=2400.00,
+            sl=2398.00,
+            tp=2401.00,
+            rr_ratio=0.50, # 1:2 R:R
+            spread_pips=1.2,
+            open_positions=[],
+            h1_trend="BULLISH", # M5 trend
+            h4_trend="BULLISH"  # M15 trend
+        )
+        assert res.passed
+        assert len(res.failed_checks) == 0
+    finally:
+        settings.pro_trader_mode = old_pt
 
     # 2. Trend Alignment with M5/M15 instead of H1/H4:
     # In scalping mode, if both M5 and M15 trends are BEARISH and confidence < 0.75, trend alignment check fails.
@@ -213,4 +225,40 @@ def test_risk_gate_scalping_rules():
     assert any("TREND_MISALIGNMENT" in f for f in res_failed.failed_checks)
     assert "M5=BEARISH" in res_failed.blocked_reason
     assert "M15=BEARISH" in res_failed.blocked_reason
+
+
+def test_directional_loss_cooldown_shield():
+    """Verify Directional Loss Shield blocks re-entering same direction within 15m unless high confidence or better price."""
+    from agent.risk.gate import risk_gate
+    risk_gate.record_loss("XAUUSD", "SELL", 2400.00)
+
+    # Attempt same direction (SELL) at same price (2400.00) with confidence 70% -> BLOCKED
+    res_blocked = risk_gate.check(
+        symbol="XAUUSD",
+        action="SELL",
+        confidence=0.70,
+        entry=2400.00,
+        sl=2405.00,
+        tp=2390.00,
+        rr_ratio=2.0,
+        spread_pips=1.5,
+        open_positions=[],
+    )
+    assert not res_blocked.passed
+    assert any("DIRECTIONAL_LOSS_COOLDOWN" in f for f in res_blocked.failed_checks)
+
+    # Attempt same direction (SELL) with high confidence (85%) -> ALLOWED
+    res_high_conf = risk_gate.check(
+        symbol="XAUUSD",
+        action="SELL",
+        confidence=0.85,
+        entry=2400.00,
+        sl=2405.00,
+        tp=2390.00,
+        rr_ratio=2.0,
+        spread_pips=1.5,
+        open_positions=[],
+    )
+    assert res_high_conf.passed
+
 

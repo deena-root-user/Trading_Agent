@@ -155,6 +155,46 @@ class SMCData:
     def active_fvgs(self) -> List[FVGZoneInfo]:
         return [fvg for fvg in self.fvgs if not fvg.filled]
 
+    def update_live_price(self, current_price: float) -> "SMCData":
+        """
+        Dynamically update live price position, premium/discount classification,
+        and liquidity pool distances using current real-time tick price.
+        """
+        if current_price is None or current_price <= 0:
+            return self
+
+        self.last_close = current_price
+
+        # Recalculate dynamic premium/discount for current price relative to active swing range
+        if self.active_swing_high and self.active_swing_low and (self.active_swing_high > self.active_swing_low):
+            high = self.active_swing_high
+            low = self.active_swing_low
+            self.swing_range = high - low
+            self.equilibrium = (high + low) / 2.0
+            pct = (current_price - low) / self.swing_range if self.swing_range > 0 else 0.5
+
+            if pct >= 0.55:
+                self.premium_discount = "PREMIUM"
+            elif pct <= 0.45:
+                self.premium_discount = "DISCOUNT"
+            else:
+                self.premium_discount = "EQUILIBRIUM"
+
+        # Update distances to BSL / SSL pools with current_price
+        if self.bsl_pools:
+            unmitigated_bsl = [p.level for p in self.bsl_pools if not p.swept]
+            if unmitigated_bsl:
+                nearest_bsl = min(unmitigated_bsl, key=lambda lvl: abs(lvl - current_price))
+                self.distance_to_nearest_bsl = nearest_bsl - current_price
+
+        if self.ssl_pools:
+            unmitigated_ssl = [p.level for p in self.ssl_pools if not p.swept]
+            if unmitigated_ssl:
+                nearest_ssl = min(unmitigated_ssl, key=lambda lvl: abs(lvl - current_price))
+                self.distance_to_nearest_ssl = current_price - nearest_ssl
+
+        return self
+
     def to_dict(self) -> Dict:
         """Convert SMC summary into structured dict for the analysis pipeline."""
         n_bars = max(len(self.order_blocks), 1)
@@ -167,6 +207,7 @@ class SMCData:
         next_liq = self.next_liquidity_target or {}
 
         return {
+            "symbol": self.symbol,
             "timeframe": self.timeframe,
             "trend": self.trend,
             "last_close": round(self.last_close, 5),
@@ -306,10 +347,10 @@ class SMCEngine:
         self.displacement_atr_mult = displacement_atr_mult
         self.min_fvg_atr_mult = min_fvg_atr_mult
 
-    def analyze(self, df: pd.DataFrame, symbol: str = "XAUUSD", timeframe: str = "H1") -> SMCData:
+    def analyze(self, df: pd.DataFrame, symbol: str = "XAUUSD", timeframe: str = "H1", current_price: float = 0.0) -> SMCData:
         """
         Main entry point. Returns SMCData with all institutional features.
-        Always drops the last (current incomplete) bar first.
+        Always drops the last (current incomplete) bar first, then updates with real-time current_price.
         """
         if df is None or df.empty:
             return SMCData(symbol=symbol, timeframe=timeframe, trend="NEUTRAL")
@@ -725,7 +766,7 @@ class SMCEngine:
                         inducement_swept = True
                         break
 
-        return SMCData(
+        res = SMCData(
             symbol=symbol,
             timeframe=timeframe,
             trend=trend,
@@ -756,12 +797,20 @@ class SMCEngine:
             next_liquidity_target=next_liq_target,
         )
 
+        if current_price and current_price > 0:
+            res.update_live_price(current_price)
+
+        return res
+
     @staticmethod
     def _compute_atr(highs: np.ndarray, lows: np.ndarray, closes: np.ndarray, n: int) -> np.ndarray:
-        """Compute ATR(14) array."""
+        """Compute ATR(14) array with robust bounds checking for small DataFrames."""
         atr = np.zeros(n)
-        if n < 15:
-            atr[:] = (highs - lows).mean() or 0.001
+        bar_range_fallback = max(float((highs - lows).mean()), 0.001)
+
+        # For very small DataFrames, use simple average bar range
+        if n < 29:
+            atr[:] = bar_range_fallback
             return atr
 
         tr = np.maximum(
@@ -772,9 +821,12 @@ class SMCEngine:
             ),
         )
         atr_series = pd.Series(tr).rolling(14).mean().values
-        atr[14:] = np.nan_to_num(atr_series[13:], nan=0.001)
-        if atr[14] == 0:
-            atr[:] = (highs - lows).mean() or 0.001
+        # atr_series has length n-1, atr_series[13:] has length n-14
+        # atr[14:] also has length n-14, so indices align correctly
+        valid_atr = np.nan_to_num(atr_series[13:], nan=0.001)
+        atr[14:] = np.maximum(valid_atr, 0.001)  # Floor: no zero-ATR leaks
+        if atr[14] <= 0.001:
+            atr[:] = bar_range_fallback
         else:
             atr[:14] = atr[14]  # backfill early bars with first valid ATR
         return atr

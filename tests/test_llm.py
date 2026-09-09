@@ -198,14 +198,19 @@ def test_ollama_client_vision_failure_tracking():
     from agent.llm.ollama_client import ollama_client
     from agent.config import settings
 
-    ollama_client.reset_vision_failures()
-    assert not ollama_client.should_skip_vision()
+    old_vision = settings.enable_vision
+    settings.enable_vision = True
+    try:
+        ollama_client.reset_vision_failures()
+        assert not ollama_client.should_skip_vision()
 
-    ollama_client._consecutive_vision_failures = 2
-    assert ollama_client.should_skip_vision()
+        ollama_client._consecutive_vision_failures = 2
+        assert ollama_client.should_skip_vision()
 
-    ollama_client.reset_vision_failures()
-    assert not ollama_client.should_skip_vision()
+        ollama_client.reset_vision_failures()
+        assert not ollama_client.should_skip_vision()
+    finally:
+        settings.enable_vision = old_vision
 
 
 

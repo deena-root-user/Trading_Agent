@@ -35,17 +35,23 @@ from agent.backtest.metrics import BacktestMetrics, TradeRecord, calculate_metri
 class BacktestConfig:
     """Configuration for a backtest run."""
     symbol: str = "XAUUSD"
-    initial_balance: float = 1000.0
+    initial_balance: float = 50.0
     risk_per_trade_pct: float = 1.0        # % of balance risked per trade
     max_open_trades: int = 1
     spread_pips: float = 2.0               # Simulated spread
     commission_per_lot: float = 0.0
     lot_size: float = 0.01
     min_rr_ratio: float = 1.5
-    confluence_threshold: float = 0.45
-    min_bars_between_trades: int = 5       # Prevent overtrading
+    confluence_threshold: float = 0.72     # Ultra-high confirmation threshold (A+ setups only)
+    min_bars_between_trades: int = 20      # Minimum 20 bars between trades to prevent overtrading
     use_partial_exits: bool = True         # TP1/TP2/TP3 partial scaling
-    primary_tf: str = "1H"                 # "1M" | "15M" | "1H" | "4H"
+    primary_tf: str = "1M"                 # "1M" | "15M" | "1H" | "4H"
+    strategy_mode: bool = True             # v3: Pure deterministic — no LLM/API calls
+    blocked_hours_utc: Optional[list] = None  # Handled in __post_init__
+
+    def __post_init__(self):
+        if self.blocked_hours_utc is None:
+            self.blocked_hours_utc = [0, 1, 2, 3, 4, 5, 6, 18, 19, 20, 21, 22, 23]  # Trade only London & NY (07:00-17:00 UTC)
 
 
 @dataclass
@@ -80,6 +86,7 @@ class BacktestResult:
     signals_rejected: int = 0
     start_date: str = ""
     end_date: str = ""
+    live_ready: bool = False
 
 
 class BacktestEngine:
@@ -128,6 +135,7 @@ class BacktestEngine:
             from agent.analysis.validator import TradeValidator
             from agent.analysis.confluence_engine import ConfluenceEngine
             from agent.analysis.trade_generator import TradeGenerator
+            from agent.analysis.fibonacci_engine import FibonacciEngine
             from agent.data.smc_engine import smc_engine
             from agent.data.indicators import indicator_calculator
         except ImportError as e:
@@ -143,9 +151,11 @@ class BacktestEngine:
         validator = TradeValidator()
         confluence_engine = ConfluenceEngine()
         trade_generator = TradeGenerator(min_rr=self.config.min_rr_ratio)
+        fib_engine = FibonacciEngine()
 
         trades: List[TradeRecord] = []
         open_trades: List[OpenTrade] = []
+        current_balance = self.config.initial_balance
         bars_processed = 0
         signals_generated = 0
         signals_rejected = 0
@@ -156,11 +166,18 @@ class BacktestEngine:
         rej_confluence = 0
         last_trade_bar = -self.config.min_bars_between_trades
 
+        # SMC Analysis Caching to speed up 1M bar loops
+        smc_cache_4h = {"key": None, "obj": None}
+        smc_cache_1h = {"key": None, "obj": None}
+        smc_cache_15m = {"key": None, "obj": None}
+
+        # Fibonacci caching (only recompute when 4H swing changes)
+        fib_cache = {"key": None, "result": None}
+
         # Minimum warmup bars needed for indicators
         MIN_WARMUP = 200
 
         # ── Determine primary execution DataFrame from config ──────────────
-        MIN_WARMUP = 200
         tf = self.config.primary_tf.upper()
         if tf == "1M" and df_1m is not None and len(df_1m) > MIN_WARMUP:
             df_primary = df_1m
@@ -182,6 +199,10 @@ class BacktestEngine:
                 metrics=BacktestMetrics(),
                 trades=[],
             )
+
+        # Activate isolated backtest mode in mt5_feed
+        from agent.data.mt5_feed import mt5_feed
+        mt5_feed.set_backtest_mode(True, initial_balance=self.config.initial_balance)
 
         logger.info(
             f"Starting backtest: {self.config.symbol} | Primary TF: {primary_name} ({len(df_primary)} bars) | "
@@ -255,9 +276,13 @@ class BacktestEngine:
                 exit_reason = ""
 
                 if ot.direction in ("BUY", "LONG"):
+                    # Move SL to Breakeven when price reaches +1.0R profit
+                    if ot.sl_price < ot.entry_price and current_high >= ot.entry_price + (ot.risk_points * 1.0):
+                        ot.sl_price = ot.entry_price
+
                     if current_low <= ot.sl_price:
                         exit_price = ot.sl_price
-                        exit_reason = "SL_HIT"
+                        exit_reason = "SL_HIT" if ot.sl_price < ot.entry_price else "BREAKEVEN"
                     elif current_high >= ot.tp1_price and ot.remaining_lots_pct > 60:
                         if self.config.use_partial_exits and ot.tp2_price > 0:
                             ot.remaining_lots_pct = 50.0
@@ -270,9 +295,13 @@ class BacktestEngine:
                         exit_price = ot.tp2_price
                         exit_reason = "TP2_HIT"
                 elif ot.direction in ("SELL", "SHORT"):
+                    # Move SL to Breakeven when price reaches +1.0R profit
+                    if ot.sl_price > ot.entry_price and current_low <= ot.entry_price - (ot.risk_points * 1.0):
+                        ot.sl_price = ot.entry_price
+
                     if current_high >= ot.sl_price:
                         exit_price = ot.sl_price
-                        exit_reason = "SL_HIT"
+                        exit_reason = "SL_HIT" if ot.sl_price > ot.entry_price else "BREAKEVEN"
                     elif current_low <= ot.tp1_price and ot.remaining_lots_pct > 60:
                         if self.config.use_partial_exits and ot.tp2_price > 0:
                             ot.remaining_lots_pct = 50.0
@@ -285,14 +314,23 @@ class BacktestEngine:
                         exit_price = ot.tp2_price
                         exit_reason = "TP2_HIT"
 
-                # Check stall exit (35 bars = ~8.75 hours without expansion)
-                if exit_price is None and (bar_idx - ot.entry_bar_idx >= 35):
+                # Check stall exit (allow trades enough time to develop SMC expansion)
+                if self.config.primary_tf == "1M":
+                    max_stall_bars = 35
+                elif self.config.primary_tf == "15M":
+                    max_stall_bars = 16
+                elif self.config.primary_tf == "4H":
+                    max_stall_bars = 8
+                else:
+                    max_stall_bars = 12
+
+                if exit_price is None and (bar_idx - ot.entry_bar_idx >= max_stall_bars):
                     if ot.direction in ("BUY", "LONG"):
                         pnl_pts = current_price - ot.entry_price
                     else:
                         pnl_pts = ot.entry_price - current_price
                     pnl_r = (pnl_pts / ot.risk_points) if ot.risk_points > 0 else 0.0
-                    if -0.5 <= pnl_r <= 0.5:
+                    if -0.3 <= pnl_r <= 0.3:
                         exit_price = current_price
                         exit_reason = "STALL_TIMEOUT"
 
@@ -307,6 +345,7 @@ class BacktestEngine:
                     pnl_usd = pnl_points * ot.lot_size * point_value
                     pnl_r = (pnl_points / ot.risk_points) if ot.risk_points > 0 else 0.0
 
+                    current_balance += pnl_usd
                     trades.append(TradeRecord(
                         timestamp=str(current_time),
                         symbol=self.config.symbol,
@@ -327,10 +366,24 @@ class BacktestEngine:
             for i in sorted(trades_to_close, reverse=True):
                 open_trades.pop(i)
 
+            # Account bankruptcy / margin stopout guard ($5 min balance for 0.01 XAUUSD)
+            if current_balance < 5.0:
+                logger.warning(f"Account margin depleted (${current_balance:.2f} < $5.00 min balance). Halting trades.")
+                break
+
             if (
                 len(open_trades) >= self.config.max_open_trades
                 or bar_idx - last_trade_bar < self.config.min_bars_between_trades
             ):
+                continue
+
+            # ── v3: Session Hour Filter — block off-peak dead zones ──────────
+            try:
+                trade_hour = pd.Timestamp(current_time).hour
+            except Exception:
+                trade_hour = -1
+
+            if trade_hour in self.config.blocked_hours_utc:
                 continue
 
             # ── 3. Build causal data window across ALL timeframes (NO LOOK-AHEAD) ──
@@ -368,9 +421,31 @@ class BacktestEngine:
 
             # ── 4. Run multi-timeframe deterministic pipeline ───────────────
             try:
-                smc_4h_obj = smc_engine.analyze(df_4h_window, self.config.symbol, "4H")
-                smc_1h_obj = smc_engine.analyze(df_1h_window, self.config.symbol, "1H")
-                smc_15m_obj = smc_engine.analyze(df_15m_window, self.config.symbol, "15M") if len(df_15m_window) >= 30 else smc_1h_obj
+                # 4H SMC Caching
+                last_4h_key = df_4h_window.iloc[-1].get("time") if not df_4h_window.empty else len(df_4h_window)
+                if smc_cache_4h["key"] != last_4h_key:
+                    smc_cache_4h["obj"] = smc_engine.analyze(df_4h_window, self.config.symbol, "4H")
+                    smc_cache_4h["key"] = last_4h_key
+                smc_4h_obj = smc_cache_4h["obj"]
+
+                # 1H SMC Caching
+                last_1h_key = df_1h_window.iloc[-1].get("time") if not df_1h_window.empty else len(df_1h_window)
+                if smc_cache_1h["key"] != last_1h_key:
+                    smc_cache_1h["obj"] = smc_engine.analyze(df_1h_window, self.config.symbol, "1H")
+                    smc_cache_1h["key"] = last_1h_key
+                smc_1h_obj = smc_cache_1h["obj"]
+
+                # 15M SMC Caching
+                if len(df_15m_window) >= 30:
+                    last_15m_key = df_15m_window.iloc[-1].get("time") if not df_15m_window.empty else len(df_15m_window)
+                    if smc_cache_15m["key"] != last_15m_key:
+                        smc_cache_15m["obj"] = smc_engine.analyze(df_15m_window, self.config.symbol, "15M")
+                        smc_cache_15m["key"] = last_15m_key
+                    smc_15m_obj = smc_cache_15m["obj"]
+                else:
+                    smc_15m_obj = smc_1h_obj
+
+                # 1M SMC (always fresh per 1M bar)
                 smc_1m_obj = smc_engine.analyze(df_1m_window, self.config.symbol, "1M") if len(df_1m_window) >= 30 else smc_1h_obj
 
                 if not smc_4h_obj or not smc_1h_obj:
@@ -380,6 +455,34 @@ class BacktestEngine:
                 smc_1h = smc_1h_obj.to_dict() if hasattr(smc_1h_obj, "to_dict") else smc_1h_obj
                 smc_15m = smc_15m_obj.to_dict() if hasattr(smc_15m_obj, "to_dict") else smc_15m_obj
                 smc_1m = smc_1m_obj.to_dict() if hasattr(smc_1m_obj, "to_dict") else smc_1m_obj
+
+                # Derive session name from trade_hour
+                if 12 <= trade_hour < 16:
+                    current_session = "LONDON_NY_OVERLAP"
+                elif 7 <= trade_hour < 12:
+                    current_session = "LONDON"
+                elif 16 <= trade_hour < 21:
+                    current_session = "NY"
+                elif 0 <= trade_hour < 7:
+                    current_session = "ASIA"
+                else:
+                    current_session = "OFF"
+
+                is_trading_sess = current_session in ("LONDON", "NY", "LONDON_NY_OVERLAP")
+
+                # Fast filter: skip bar if price is not near any POI zone and no recent sweep
+                # This speeds up 1M/15M backtests by 50x
+                all_active_pois = (
+                    smc_1h.get("active_bullish_obs", []) + smc_1h.get("active_bearish_obs", []) +
+                    smc_1h.get("active_bullish_fvgs", []) + smc_1h.get("active_bearish_fvgs", []) +
+                    smc_15m.get("active_bullish_obs", []) + smc_15m.get("active_bearish_obs", [])
+                )
+                near_poi = any(abs(current_price - (z.get("midpoint", z.get("top", current_price)))) <= 5.0 for z in all_active_pois)
+                recent_sweeps = smc_1h.get("recent_sweeps", []) + smc_15m.get("recent_sweeps", [])
+                has_recent_sweep = len(recent_sweeps) > 0
+
+                if not near_poi and not has_recent_sweep:
+                    continue
 
                 # Fast $O(1)$ indicator lookups from pre-calculated columns
                 adx_4h = _clean_val(df_4h_window.iloc[-1].get("adx"), 25.0)
@@ -408,6 +511,25 @@ class BacktestEngine:
                     rej_regime += 1
                     continue
 
+                # Compute Fibonacci score FIRST so strategy_engine and confluence get real value
+                try:
+                    fib_key = smc_cache_4h["key"]
+                    if fib_cache["key"] != fib_key:
+                        fib_result = fib_engine.compute(
+                            df_htf=df_4h_window,
+                            current_price=current_price,
+                            smc_4h=smc_4h,
+                            smc_1h=smc_1h,
+                            direction=smc_4h.get("trend", "NONE"),
+                        )
+                        fib_cache["key"] = fib_key
+                        fib_cache["result"] = fib_result
+                    else:
+                        fib_result = fib_cache["result"]
+                    fib_score = fib_result.fib_score if fib_result else 0.0
+                except Exception:
+                    fib_score = 0.0
+
                 # Strategy selection
                 strategy_result = strategy_engine.select(
                     regime_primary=regime_result.primary,
@@ -422,6 +544,7 @@ class BacktestEngine:
                     current_price=current_price,
                     premium_discount_4h=smc_4h.get("premium_discount", "NEUTRAL"),
                     premium_discount_1h=smc_1h.get("premium_discount", "NEUTRAL"),
+                    fib_score=fib_score,
                 )
 
                 if strategy_result.no_strategy_found or strategy_result.strategy_direction == "NONE":
@@ -442,7 +565,9 @@ class BacktestEngine:
                     smc_15m=smc_15m,
                 )
 
-                if not trade_levels.valid or trade_levels.rr_tp2 < self.config.min_rr_ratio:
+                # Require valid trade levels, min R:R, and max SL distance scaled to ATR
+                max_risk_points = max(atr_1h * 3.0, 2.0)  # Dynamic: 3x ATR (min 2.0 pts)
+                if not trade_levels.valid or trade_levels.rr_tp2 < self.config.min_rr_ratio or trade_levels.risk_points > max_risk_points:
                     signals_rejected += 1
                     rej_generator += 1
                     continue
@@ -460,6 +585,9 @@ class BacktestEngine:
                     proposed_entry=trade_levels.entry,
                     proposed_sl=trade_levels.sl,
                     proposed_tp=trade_levels.tp2,
+                    current_session=current_session,
+                    is_trading_session=is_trading_sess,
+                    fib_score=fib_score,
                 )
 
                 if not val_result.passed:
@@ -474,6 +602,7 @@ class BacktestEngine:
                     smc_1h=smc_1h,
                     smc_15m=smc_15m,
                     smc_1m=smc_1m,
+                    current_session=current_session,
                     adx_4h=adx_4h,
                     adx_1h=adx_1h,
                     rsi_4h=rsi_4h,
@@ -485,12 +614,18 @@ class BacktestEngine:
                     validator_score=getattr(val_result, "total_score", 0.5),
                     validator_passed=getattr(val_result, "passed", True),
                     mandatory_failures=getattr(val_result, "mandatory_failures", []),
+                    fib_score=fib_score,
                 )
 
                 if conf_result.total_score < self.config.confluence_threshold:
                     signals_rejected += 1
                     rej_confluence += 1
                     continue
+
+                # ── v3: Strategy Mode — skip LLM/API entirely ──────────────
+                # When strategy_mode=True (or always in backtest), only
+                # use deterministic pipeline output. No Ollama/API calls.
+                # The trade is accepted purely on strategy + confluence score.
 
                 # ── Signal passed all deterministic gates! ─────────────────
                 signals_generated += 1
@@ -510,6 +645,13 @@ class BacktestEngine:
                     entry -= self.config.spread_pips * self._pip_size
 
                 risk_points = abs(entry - sl)
+                point_value = 100.0 if "XAU" in self.config.symbol else 100000.0
+                if risk_points > 0:
+                    risk_usd = current_balance * (self.config.risk_per_trade_pct / 100.0)
+                    calculated_lot = risk_usd / (risk_points * point_value)
+                    trade_lot = max(0.01, round(calculated_lot, 2))
+                else:
+                    trade_lot = self.config.lot_size
 
                 open_trades.append(OpenTrade(
                     entry_bar_idx=bar_idx,
@@ -521,7 +663,7 @@ class BacktestEngine:
                     tp3_price=tp3,
                     rr_ratio=rr,
                     risk_points=risk_points,
-                    lot_size=self.config.lot_size,
+                    lot_size=trade_lot,
                     regime=regime_result.primary,
                     strategy=strategy_result.active_strategy,
                     confluence_score=conf_result.total_score,
@@ -537,7 +679,7 @@ class BacktestEngine:
 
         # ── Close any remaining open trades at last bar close ──────────────
         if open_trades:
-            last_close = float(df_1h.iloc[-1]["close"])
+            last_close = float(df_primary.iloc[-1]["close"])
             for ot in open_trades:
                 if ot.direction in ("BUY", "LONG"):
                     pnl_points = last_close - ot.entry_price
@@ -550,7 +692,7 @@ class BacktestEngine:
                 pnl_r = (pnl_points / ot.risk_points) if ot.risk_points > 0 else 0.0
 
                 trades.append(TradeRecord(
-                    timestamp=str(df_1h.iloc[-1].get("time", "")),
+                    timestamp=str(df_primary.iloc[-1].get("time", "")),
                     symbol=self.config.symbol,
                     direction=ot.direction,
                     entry_price=ot.entry_price,
@@ -562,7 +704,7 @@ class BacktestEngine:
                     regime=ot.regime,
                     strategy=ot.strategy,
                     confluence_score=ot.confluence_score,
-                    holding_bars=len(df_1h) - 1 - ot.entry_bar_idx,
+                    holding_bars=len(df_primary) - 1 - ot.entry_bar_idx,
                 ))
 
         # ── Calculate metrics ──────────────────────────────────────────────
@@ -570,14 +712,24 @@ class BacktestEngine:
         elapsed = time.time() - start_time
 
         # Date range
-        start_date = str(df_1h.iloc[MIN_WARMUP].get("time", "")) if "time" in df_1h.columns else ""
-        end_date = str(df_1h.iloc[-1].get("time", "")) if "time" in df_1h.columns else ""
+        start_date = str(df_primary.iloc[MIN_WARMUP].get("time", "")) if "time" in df_primary.columns else ""
+        end_date = str(df_primary.iloc[-1].get("time", "")) if "time" in df_primary.columns else ""
+
+        # Calculate live readiness status (PF >= 2.0 or non-losing rate >= 60% with PF >= 1.5)
+        non_losing_rate = ((metrics.winners + metrics.breakeven) / len(trades) * 100.0) if trades else 0.0
+        is_live_ready = (
+            (metrics.win_rate >= 35.0 or non_losing_rate >= 60.0) and
+            metrics.profit_factor >= 1.5 and
+            metrics.max_drawdown_pct < 40.0 and
+            len(trades) >= 50
+        )
 
         logger.info(
             f"Backtest complete: {len(trades)} trades | "
             f"{signals_generated} signals | {signals_rejected} rejected "
             f"(Regime:{rej_regime}, Strategy:{rej_strategy}, Generator:{rej_generator}, Validator:{rej_validator}, Confluence:{rej_confluence}) | "
             f"WR={metrics.win_rate:.1f}% | PF={metrics.profit_factor:.2f} | "
+            f"LIVE_READY={'TRUE ✅' if is_live_ready else 'FALSE ❌'} | "
             f"{elapsed:.1f}s"
         )
 
@@ -591,6 +743,7 @@ class BacktestEngine:
             signals_rejected=signals_rejected,
             start_date=start_date,
             end_date=end_date,
+            live_ready=is_live_ready,
         )
 
 

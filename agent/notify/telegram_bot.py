@@ -15,8 +15,8 @@ from loguru import logger
 from agent.config import settings
 
 try:
-    from telegram import Update, Bot
-    from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+    from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
     from telegram.error import Conflict
     TELEGRAM_AVAILABLE = True
 except ImportError:
@@ -37,6 +37,28 @@ class PaxisBot:
         """Give the bot a reference to the main agent for control commands."""
         self._agent_ref = agent
 
+    def get_upcoming_keyboard(self) -> dict:
+        return {
+            "inline_keyboard": [
+                [
+                    {"text": "📌 Refresh Upcoming Setups", "callback_data": "cmd_upcoming"},
+                    {"text": "📊 Bot Status", "callback_data": "cmd_status"}
+                ]
+            ]
+        }
+
+    @staticmethod
+    async def _safe_reply(update: 'Update', text: str, **kwargs) -> None:
+        """Reply to an update safely, handling both message and callback_query contexts."""
+        try:
+            if update.message:
+                await update.message.reply_text(text, **kwargs)
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.message.reply_text(text, **kwargs)
+        except Exception as exc:
+            logger.error(f"Safe reply failed: {exc}")
+
     # ── Sync send helpers (thread-safe) ───────────────────────────────────────
 
     def _run_coro(self, coro) -> None:
@@ -50,18 +72,21 @@ class PaxisBot:
         except Exception as exc:
             logger.error(f"Telegram send error: {exc}")
 
-    def _send(self, text: str, parse_mode: str = "HTML") -> None:
+    def _send(self, text: str, parse_mode: str = "HTML", reply_markup: Optional[dict] = None) -> None:
         if not TELEGRAM_AVAILABLE or not settings.telegram_bot_token or not settings.telegram_chat_id:
             logger.info(f"[TELEGRAM DISABLED] {text[:100]}")
             return
         import httpx
         try:
             url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
-            httpx.post(url, json={
+            payload = {
                 "chat_id": settings.telegram_chat_id,
                 "text": text,
                 "parse_mode": parse_mode,
-            }, timeout=10)
+            }
+            if reply_markup:
+                payload["reply_markup"] = reply_markup
+            httpx.post(url, json=payload, timeout=10)
         except Exception as exc:
             logger.error(f"Telegram HTTP send failed: {exc}")
 
@@ -121,14 +146,114 @@ class PaxisBot:
         action: str,
         pnl: float,
         outcome: str,
+        ticket: Optional[int] = None,
+        entry: Optional[float] = None,
+        exit_price: Optional[float] = None,
+        lot_size: Optional[float] = None,
     ) -> None:
+        sym_clean = symbol.split(".")[0].upper()
         emoji = "✅" if pnl > 0 else "❌"
-        msg = (
-            f"{emoji} <b>CLOSED {action} {symbol}</b>\n"
-            f"💰 P&L: <code>{pnl:+.2f} USD</code>\n"
-            f"📊 Outcome: <b>{outcome}</b>"
-        )
+        ticket_str = f" (#{ticket})" if ticket else ""
+        is_gold = any(x in sym_clean for x in ["XAU", "GOLD"])
+        entry_str = f"{entry:.2f}" if entry and is_gold else (f"{entry:.5f}" if entry else "N/A")
+        exit_str = f"{exit_price:.2f}" if exit_price and is_gold else (f"{exit_price:.5f}" if exit_price else "N/A")
+        lot_str = f" | Lot: <code>{lot_size}</code>" if lot_size else ""
+
+        lines = [
+            f"{emoji} <b>CLOSED {action} {sym_clean}</b>{ticket_str}",
+            f"📍 Entry: <code>{entry_str}</code> | Exit: <code>{exit_str}</code>{lot_str}",
+            f"💰 Realized Net P&L: <b>{pnl:+.2f} USD</b>",
+            f"📊 Outcome: <b>{outcome}</b>",
+        ]
+        msg = "\n".join(lines)
         self._send(msg)
+        logger.info(f"Telegram trade close alert sent: #{ticket} {action} {sym_clean} PnL={pnl:+.2f} USD")
+
+    def send_upcoming_trade(
+        self,
+        symbol: str,
+        direction: str,
+        strategy: str,
+        regime: str,
+        entry: float,
+        sl: float,
+        tp1: float,
+        tp2: float,
+        rr_ratio: float,
+        lot_size: float,
+        reasoning: str,
+        current_price: float = 0.0,
+        signal_grade: str = "A",
+        tp3: Optional[float] = None,
+        is_update: bool = False,
+        mechanical_analysis: Optional[str] = None,
+        llm_analysis: Optional[str] = None,
+    ) -> None:
+        """Send formatted institutional Upcoming POI Trade Setup card to Telegram with Dual Analysis."""
+        if not TELEGRAM_AVAILABLE or not settings.telegram_bot_token:
+            return
+
+        is_short = "SHORT" in direction.upper() or "SELL" in direction.upper()
+        emoji = "🔴" if is_short else "🟢"
+        action_name = "SELL (SHORT)" if is_short else "BUY (LONG)"
+        card_type = "⚡ PAXIS PRO TRADER v2 | UPDATED SETUP CARD" if is_update else "⚡ PAXIS PRO TRADER v2 | UPCOMING SETUP CARD"
+
+        # Math calculations
+        risk_pts = abs(entry - sl) if entry > 0 and sl > 0 else 0.0
+        tp1_profit = abs(entry - tp1) if entry > 0 and tp1 > 0 else 0.0
+        tp1_rr = (tp1_profit / risk_pts) if risk_pts > 0 else 2.00
+
+        tp2_profit = abs(entry - tp2) if entry > 0 and tp2 > 0 else 0.0
+        tp2_rr = (tp2_profit / risk_pts) if risk_pts > 0 else 3.50
+
+        tp3_line = ""
+        if tp3 and tp3 > 0:
+            tp3_profit = abs(entry - tp3)
+            tp3_rr = (tp3_profit / risk_pts) if risk_pts > 0 else 10.0
+            tp3_line = f"  🎯 <b>TP3:</b>         <code>{tp3:.3f}</code> ({tp3_profit:.2f} pts Profit ➔ {tp3_rr:.2f} R:R)  [Extended HTF Runner]"
+
+        dist_points = abs(current_price - entry) if current_price > 0 else 0.0
+        rr_grade = "🔥 A+ ELITE" if rr_ratio >= 3.5 else ("⚡ HIGH CONVICTION" if rr_ratio >= 2.0 else "✅ STANDARD")
+
+        lines = [
+            "==========================================",
+            f"<b>{card_type}</b>",
+            "==========================================",
+            f"🪙 <b>Symbol:</b> <code>{symbol}</code> | Current Price: <code>{current_price:.3f}</code>",
+            f"{emoji} <b>Direction:</b> <b>{action_name}</b> ({rr_grade})",
+            f"🎯 <b>Strategy:</b> <code>{strategy}</code>",
+            f"📈 <b>Market Regime:</b> <code>{regime}</code>",
+            f"📊 <b>Distance to Entry:</b> <code>${dist_points:.2f}</code> points away",
+            "",
+            "<b>📥 UPCOMING ENTRY ZONE & TARGET SCALING:</b>",
+            f"  📍 <b>Limit Entry:</b> <code>{entry:.3f}</code> (15M POI Equilibrium)",
+            f"  🛑 <b>Stop Loss:</b>   <code>{sl:.3f}</code> ({risk_pts:.3f} pts Risk)",
+            "  ──────────────────────────────────────────",
+            f"  🎯 <b>TP1:</b>         <code>{tp1:.3f}</code> ({tp1_profit:.2f} pts Profit ➔ {tp1_rr:.2f} R:R)  [Partial Profit & BE]",
+            f"  🎯 <b>TP2:</b>         <code>{tp2:.3f}</code> ({tp2_profit:.2f} pts Profit ➔ {tp2_rr:.2f} R:R)  [Primary Intraday Target]",
+        ]
+
+        if tp3_line:
+            lines.append(tp3_line)
+
+        mech_text = mechanical_analysis or f"Strategy={strategy} | 18-Pt Validator PASS ✓ | 4H/1H Structural Alignment"
+        llm_text = llm_analysis or reasoning or "Pure Mechanical Strategy Calculation (<2ms execution, 0 LLM token cost)"
+
+        lines.extend([
+            f"  ⚖️ <b>Risk / Reward:</b> <b>{rr_ratio:.2f} R:R</b> | Lot: <code>{lot_size}</code>",
+            "",
+            "<b>⚙️ 1. MECHANICAL SMC ENGINE ANALYSIS:</b>",
+            f"  • {mech_text}",
+            "",
+            "<b>🧠 2. REMOTE LLM AI ANALYSIS:</b>",
+            f"  • {llm_text}",
+            "",
+            f"💡 <b>Action Directive:</b> <code>HOLD & MONITOR</code> (Waiting for POI Retracement)",
+            "==========================================",
+        ])
+        msg = "\n".join(lines)
+        self._send(msg, reply_markup=self.get_upcoming_keyboard())
+        logger.info(f"Telegram upcoming trade card sent: {symbol} ({action_name} POI at {entry:.3f})")
 
     def send_risk_block(self, symbol: str, reason: str) -> None:
         if settings.telegram_silent_holds:
@@ -210,9 +335,10 @@ class PaxisBot:
                 app.add_handler(CommandHandler("modify", self._cmd_modify))
                 app.add_handler(CommandHandler("kill",   self._cmd_kill))
                 app.add_handler(CommandHandler("pause",  self._cmd_pause))
-                app.add_handler(CommandHandler("resume", self._cmd_resume))
+                app.add_handler(CommandHandler("upcoming", self._cmd_upcoming))
                 app.add_handler(CommandHandler("pnl",    self._cmd_pnl))
                 app.add_handler(CommandHandler("lot",    self._cmd_lot))
+                app.add_handler(CallbackQueryHandler(self._cmd_callback_query))
                 app.add_error_handler(self._handle_error)
 
                 self._app = app
@@ -250,7 +376,8 @@ class PaxisBot:
             if not settings.telegram_chat_id or str(chat_id) != str(settings.telegram_chat_id):
                 logger.warning(f"Unauthorized Telegram access attempt from Chat ID: {chat_id}")
                 try:
-                    await update.message.reply_text(
+                    await PaxisBot._safe_reply(
+                        update,
                         "❌ <b>Unauthorized access blocked.</b>\n"
                         f"This command can only be executed by the authorized owner chat ID.",
                         parse_mode="HTML"
@@ -350,16 +477,62 @@ class PaxisBot:
         if self._agent_ref:
             try:
                 summary = self._agent_ref.get_detailed_summary()
-                await update.message.reply_text(summary, parse_mode="HTML")
+                await self._safe_reply(update, summary, parse_mode="HTML")
             except Exception as e:
                 logger.error(f"Error generating summary: {e}")
-                await update.message.reply_text(f"⚠️ Error generating summary: {e}")
+                await self._safe_reply(update, f"⚠️ Error generating summary: {e}")
         else:
-            await update.message.reply_text("Agent reference not available.")
+            await self._safe_reply(update, "Agent reference not available.")
 
     @authenticated
     async def _cmd_status(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await self._cmd_summary(update, ctx)
+
+    @authenticated
+    async def _cmd_upcoming(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Show active upcoming trade POI setups."""
+        if not self._agent_ref:
+            msg = "⚠️ PAXIS Agent reference not available to fetch upcoming setups."
+            if update.message:
+                await update.message.reply_text(msg)
+            elif update.callback_query:
+                await update.callback_query.message.reply_text(msg)
+            return
+
+        try:
+            setups = self._agent_ref.get_upcoming_setups_summary()
+            if not setups:
+                text = "📌 <b>PAXIS UPCOMING TRADE SETUPS</b>\n\nNo active POI limit entry setups at this moment. Engine is monitoring market structures..."
+            else:
+                text = f"📌 <b>PAXIS ACTIVE UPCOMING POI SETUPS</b>\n\n{setups}"
+
+            keyboard = self.get_upcoming_keyboard()
+            if update.message:
+                await update.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+        except Exception as e:
+            logger.error(f"Error fetching upcoming setups: {e}")
+            err_msg = f"⚠️ Error fetching upcoming setups: {e}"
+            if update.message:
+                await update.message.reply_text(err_msg)
+            elif update.callback_query:
+                await update.callback_query.answer()
+                await update.callback_query.message.reply_text(err_msg)
+
+    @authenticated
+    async def _cmd_callback_query(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        if not query:
+            return
+        data = query.data
+        if data == "cmd_upcoming":
+            await self._cmd_upcoming(update, ctx)
+        elif data == "cmd_status":
+            await self._cmd_summary(update, ctx)
+        else:
+            await query.answer()
 
     @authenticated
     async def _cmd_buy(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -520,54 +693,55 @@ class PaxisBot:
 
     @authenticated
     async def _cmd_kill(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text("🚨 <b>EMERGENCY HALT triggered!</b> Closing all open positions and pausing agent...", parse_mode="HTML")
+        await self._safe_reply(update, "🚨 <b>EMERGENCY HALT triggered!</b> Closing all open positions and pausing agent...", parse_mode="HTML")
         if self._agent_ref:
             try:
                 self._agent_ref.pause()
                 closed = self._agent_ref.emergency_close_all()
-                await update.message.reply_text(f"✅ Closed <code>{closed}</code> open positions. Agent is now <b>PAUSED</b>.", parse_mode="HTML")
+                await self._safe_reply(update, f"✅ Closed <code>{closed}</code> open positions. Agent is now <b>PAUSED</b>.", parse_mode="HTML")
             except Exception as e:
                 logger.error(f"Error executing kill switch: {e}")
-                await update.message.reply_text(f"⚠️ Error during Emergency Halt: {e}")
+                await self._safe_reply(update, f"⚠️ Error during Emergency Halt: {e}")
         else:
-            await update.message.reply_text("❌ Agent reference not available.")
+            await self._safe_reply(update, "❌ Agent reference not available.")
 
     @authenticated
     async def _cmd_pause(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if self._agent_ref:
             try:
                 self._agent_ref.pause()
-                await update.message.reply_text("⏸ <b>PAXIS Agent PAUSED.</b> No autonomous trades will be opened.", parse_mode="HTML")
+                await self._safe_reply(update, "⏸ <b>PAXIS Agent PAUSED.</b> No autonomous trades will be opened.", parse_mode="HTML")
             except Exception as e:
-                await update.message.reply_text(f"⚠️ Error pausing agent: {e}")
+                await self._safe_reply(update, f"⚠️ Error pausing agent: {e}")
         else:
-            await update.message.reply_text("Agent reference not available.")
+            await self._safe_reply(update, "Agent reference not available.")
 
     @authenticated
     async def _cmd_resume(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if self._agent_ref:
             try:
                 self._agent_ref.resume()
-                await update.message.reply_text("▶️ <b>PAXIS Agent RESUMED.</b> Autonomous trading loop active.", parse_mode="HTML")
+                await self._safe_reply(update, "▶️ <b>PAXIS Agent RESUMED.</b> Autonomous trading loop active.", parse_mode="HTML")
             except Exception as e:
-                await update.message.reply_text(f"⚠️ Error resuming agent: {e}")
+                await self._safe_reply(update, f"⚠️ Error resuming agent: {e}")
         else:
-            await update.message.reply_text("Agent reference not available.")
+            await self._safe_reply(update, "Agent reference not available.")
 
     @authenticated
     async def _cmd_pnl(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if self._agent_ref:
             try:
                 summary = self._agent_ref.get_daily_pnl_summary()
-                await update.message.reply_text(f"💰 <b>PnL Summary:</b>\n{summary}", parse_mode="HTML")
+                await self._safe_reply(update, f"💰 <b>PnL Summary:</b>\n{summary}", parse_mode="HTML")
             except Exception as e:
-                await update.message.reply_text(f"⚠️ Error: {e}")
+                await self._safe_reply(update, f"⚠️ Error: {e}")
         else:
-            await update.message.reply_text("No P&L data available")
+            await self._safe_reply(update, "No P&L data available")
 
     @authenticated
     async def _cmd_lot(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(
+        await self._safe_reply(
+            update,
             f"📐 Current default lot size: <code>{settings.lot_size}</code>\n"
             "You can update this dynamically via the web dashboard.",
             parse_mode="HTML"

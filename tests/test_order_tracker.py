@@ -11,9 +11,10 @@ def tracker():
     return t
 
 def test_order_tracker_auto_breakeven_buy(tracker):
+    settings.progressive_breakeven = False
     settings.auto_breakeven_ratio = 1.0 # 1:1 risk-to-reward ratio for breakeven trigger
     settings.trailing_stop_atr_multiplier = 0.0 # Disable trailing for this test
-    
+
     # BUY trade
     # Entry = 1.10000, SL = 1.09000 (risk = 0.01000)
     # Target trigger price = Entry + risk = 1.11000
@@ -27,17 +28,18 @@ def test_order_tracker_auto_breakeven_buy(tracker):
         "tp": 1.12000,
         "profit": 10.0,
     }
-    
+
     # 1. Below trigger
     tracker._manage_active_risk(pos)
     tracker._modify_sl.assert_not_called()
-    
-    # 2. Reaches/exceeds trigger
+
+    # 2. Reaches/exceeds trigger (spread-buffered breakeven: entry + 0.00015)
     pos["price_current"] = 1.11050
     tracker._manage_active_risk(pos)
-    tracker._modify_sl.assert_called_once_with(12345, "EURUSD", 1.10000, 1.12000)
+    tracker._modify_sl.assert_called_once_with(12345, "EURUSD", 1.10015, 1.12000)
 
 def test_order_tracker_auto_breakeven_sell(tracker):
+    settings.progressive_breakeven = False
     settings.auto_breakeven_ratio = 1.0
     settings.trailing_stop_atr_multiplier = 0.0
     
@@ -59,13 +61,14 @@ def test_order_tracker_auto_breakeven_sell(tracker):
     tracker._manage_active_risk(pos)
     tracker._modify_sl.assert_not_called()
     
-    # 2. Reaches/exceeds trigger
+    # 2. Reaches/exceeds trigger (spread-buffered breakeven: entry - 0.00015)
     pos["price_current"] = 1.08950
     tracker._manage_active_risk(pos)
-    tracker._modify_sl.assert_called_once_with(54321, "EURUSD", 1.10000, 1.08000)
+    tracker._modify_sl.assert_called_once_with(54321, "EURUSD", 1.09985, 1.08000)
 
 @patch("agent.execution.order_tracker.OrderTracker._get_symbol_atr")
 def test_order_tracker_trailing_stop_buy(mock_get_atr, tracker):
+    settings.progressive_breakeven = False
     settings.auto_breakeven_ratio = 0.0 # Disable breakeven
     settings.trailing_stop_atr_multiplier = 2.0
     mock_get_atr.return_value = 0.00100 # ATR is 10 pips (0.00100)
@@ -136,4 +139,92 @@ def test_order_tracker_scalping_protection(tracker):
         pos["profit"] = 5.5
         tracker._manage_active_risk(pos)
         mock_close.assert_called_once_with(112233, "XAUUSD", "BUY", 0.05)
+
+
+def test_order_tracker_basket_pnl_cutoff(tracker):
+    settings.basket_target_profit_usd = 10.0
+    settings.basket_sl_loss_usd = 15.0
+
+    p1 = {"ticket": 101, "symbol": "XAUUSD", "type": "SELL", "volume": 0.02, "profit": 6.0, "price_open": 2400.0, "price_current": 2397.0, "sl": 2405.0, "tp": 2380.0}
+    p2 = {"ticket": 102, "symbol": "XAUUSD", "type": "SELL", "volume": 0.02, "profit": 5.0, "price_open": 2401.0, "price_current": 2398.5, "sl": 2406.0, "tp": 2381.0}
+
+    with patch("agent.data.mt5_feed.mt5_feed.get_open_positions", return_value=[p1, p2]), \
+         patch("agent.execution.mt5_bridge.mt5_bridge.close_position") as mock_close:
+
+        # 1. Total profit is 6.0 + 5.0 = 11.0 USD >= target 10.0 USD -> close all positions
+        tracker._check_positions()
+        assert mock_close.call_count == 2
+        mock_close.assert_any_call(101, "XAUUSD", "SELL", 0.02)
+        mock_close.assert_any_call(102, "XAUUSD", "SELL", 0.02)
+
+
+def test_progressive_breakeven_steps(tracker):
+    """Verify progressive SL ratchet moves SL to correct R-multiple locks."""
+    settings.progressive_breakeven = True
+    settings.scalping_mode = False
+    settings.trailing_stop_atr_multiplier = 0.0
+    settings.profit_lock_steps = "0.5:0.0,1.0:0.25,1.5:0.5,2.0:1.0,2.5:1.5"
+
+    pos = {
+        "ticket": 777,
+        "symbol": "XAUUSD",
+        "type": "BUY",
+        "price_open": 2400.00,
+        "price_current": 2405.00,  # +0.5R when risk is 10.0
+        "sl": 2390.00,             # risk = 10.0
+        "tp": 2430.00,
+        "profit": 5.0,
+    }
+
+    # At +0.5R (2405.00), SL should move to Breakeven (2400.00 + buffer 0.20 = 2400.20)
+    tracker._manage_active_risk(pos)
+    tracker._modify_sl.assert_called_once_with(777, "XAUUSD", 2400.20, 2430.00)
+    tracker._modify_sl.reset_mock()
+
+    # Move price to +1.0R (2410.00) -> locks 0.25R (2400 + 2.50 + 0.20 = 2402.70)
+    pos["price_current"] = 2410.00
+    pos["sl"] = 2400.20
+    tracker._manage_active_risk(pos)
+    tracker._modify_sl.assert_called_once_with(777, "XAUUSD", 2402.70, 2430.00)
+
+
+def test_basket_soft_vs_hard_targets(tracker):
+    """Verify soft target tightens SLs while hard target closes all positions."""
+    settings.basket_soft_target_usd = 15.0
+    settings.basket_hard_target_usd = 25.0
+    settings.basket_target_profit_usd = 0.0
+
+    p1 = {"ticket": 201, "symbol": "EURUSD", "type": "BUY", "volume": 0.10, "profit": 16.0, "price_open": 1.10000, "price_current": 1.10200, "sl": 1.09500, "tp": 1.11000}
+
+    with patch("agent.data.mt5_feed.mt5_feed.get_open_positions", return_value=[p1]), \
+         patch("agent.execution.mt5_bridge.mt5_bridge.close_position") as mock_close:
+
+        # 1. Soft target hit ($16 >= $15) -> modifies SL, does NOT close
+        tracker._check_positions()
+        mock_close.assert_not_called()
+        tracker._modify_sl.assert_called()
+
+
+def test_basket_soft_loss_cutoff_pullback_evaluation(tracker):
+    """Verify soft loss cutoff evaluates pullback probability (holds on high prob, closes on low prob)."""
+    settings.basket_soft_loss_cutoff_usd = 10.0
+    settings.basket_sl_loss_usd = 20.0
+
+    p1 = {"ticket": 301, "symbol": "XAUUSD", "type": "SELL", "volume": 0.01, "profit": -11.0, "price_open": 2400.0, "price_current": 2411.0, "sl": 2420.0, "tp": 2380.0}
+
+    with patch("agent.data.mt5_feed.mt5_feed.get_open_positions", return_value=[p1]), \
+         patch("agent.execution.mt5_bridge.mt5_bridge.close_position") as mock_close:
+
+        # Case 1: High pullback probability (Score >= 45) -> HOLD, do not close
+        with patch.object(tracker, "_evaluate_pullback_probability", return_value=(True, 60, "M5 RSI Overbought")):
+            tracker._check_positions()
+            mock_close.assert_not_called()
+
+        # Case 2: Low pullback probability (Score < 45) -> CLOSE ALL
+        with patch.object(tracker, "_evaluate_pullback_probability", return_value=(False, 20, "No support")):
+            tracker._check_positions()
+            mock_close.assert_called_once_with(301, "XAUUSD", "SELL", 0.01)
+
+
+
 

@@ -56,6 +56,7 @@ class ConfluenceResult:
     price_position_score: float = 0.0
     momentum_score: float = 0.0
     risk_score: float = 0.0
+    fibonacci_score: float = 0.0
 
     rejection_reason: str = ""
 
@@ -77,6 +78,7 @@ class ConfluenceResult:
                 "price_position": round(self.price_position_score, 3),
                 "momentum": round(self.momentum_score, 3),
                 "risk": round(self.risk_score, 3),
+                "fibonacci": round(self.fibonacci_score, 3),
             },
             "factors": [
                 {
@@ -150,6 +152,9 @@ class ConfluenceEngine:
         validator_score: float = 0.0,
         validator_passed: bool = False,
         mandatory_failures: Optional[List[str]] = None,
+
+        # Fibonacci (from FibonacciEngine)
+        fib_score: float = 0.0,
     ) -> ConfluenceResult:
         """
         Compute the confluence score. Returns ConfluenceResult.
@@ -281,20 +286,31 @@ class ConfluenceEngine:
         disp_1h = smc_1h.get("displacement_detected", False)
         disp_15m = smc_15m.get("displacement_detected", False)
         disp_dir_1h = smc_1h.get("displacement_direction", "NONE")
+        disp_dir_15m = smc_15m.get("displacement_direction", "NONE")
         disp_mag_1h = smc_1h.get("displacement_magnitude_atr", 0.0)
+        disp_mag_15m = smc_15m.get("displacement_magnitude_atr", 0.0)
         expected_disp = "BULLISH" if is_bull else "BEARISH"
 
-        disp_ok = (disp_1h or disp_15m) and disp_dir_1h == expected_disp
-        disp_mag_score = min(1.0, disp_mag_1h / 3.0) if disp_ok else 0.0  # normalize: 3x ATR = max
-        displacement_final = (0.7 if disp_ok else 0.0) + (0.3 * disp_mag_score)
+        disp_ok = (disp_1h and disp_dir_1h == expected_disp) or (disp_15m and disp_dir_15m == expected_disp)
+        disp_mag = max(disp_mag_1h, disp_mag_15m, 1.0)
+        disp_mag_score = min(1.0, disp_mag / 3.0) if disp_ok else 0.40  # 0.40 baseline if structure broke
+        displacement_final = (0.7 if disp_ok else 0.4) + (0.3 * disp_mag_score)
+        displacement_final = min(1.0, displacement_final)
 
         factors.append(ConfluenceFactor("displacement", "DISPLACEMENT_QUALITY", displacement_final, 1.0,
-                                        detail=f"detected={disp_ok}, magnitude={disp_mag_1h:.1f}x ATR"))
+                                        detail=f"detected={disp_ok}, magnitude={disp_mag:.1f}x ATR"))
 
         # ── Category 5: Session Timing (weight=8%) ─────────────────────────────
-        valid_sessions = {"LONDON", "NY", "LONDON_NY_OVERLAP"}
-        session_ok = (current_session in valid_sessions) or (current_session is None or current_session in ("", "UNKNOWN"))
-        session_base = 0.7 if session_ok else 0.5
+        if current_session in ("LONDON_NY_OVERLAP", "OVERLAP"):
+            session_base = 1.0
+        elif current_session in ("LONDON", "NY"):
+            session_base = 0.90
+        elif current_session == "ASIA":
+            session_base = 0.20  # Hard penalty for Asia session (XAUUSD whipsaws)
+        elif current_session in (None, "", "UNKNOWN"):
+            session_base = 0.50  # Neutral fallback
+        else:
+            session_base = 0.00  # Zero score for off-hours
 
         # Bonus for overlap (highest liquidity)
         if is_overlap:
@@ -334,7 +350,7 @@ class ConfluenceEngine:
         factors.append(ConfluenceFactor("price_position", "PREMIUM_DISCOUNT", price_position_final, 0.7,
                                         detail=f"4H={pd_4h}, 1H={pd_1h}, expected={expected_pd}"))
 
-        # ── Category 7: Momentum (weight=5%) ──────────────────────────────────
+        # ── Category 7: Momentum (weight=3%) ──────────────────────────────────
         adx_score = min(1.0, adx_4h / 40.0)   # normalize to 0-1 (40 = full score)
         rsi_in_range = (35 <= rsi_1h <= 65)     # ideal: not overextended
         rsi_direction_ok = (rsi_1h > 50 if is_bull else rsi_1h < 50)
@@ -345,7 +361,7 @@ class ConfluenceEngine:
         factors.append(ConfluenceFactor("momentum", "MOMENTUM_QUALITY", momentum_final, 0.5,
                                         detail=f"ADX={adx_4h:.1f}, RSI 1H={rsi_1h:.1f}, vol={volume_ratio:.1f}x"))
 
-        # ── Category 8: Risk Context (weight=3%) ──────────────────────────────
+        # ── Category 8: Risk Context (weight=2%) ──────────────────────────────
         rr_score = min(1.0, (rr_ratio - min_rr) / 2.0 + 0.5) if rr_ratio >= min_rr else 0.2
         spread_score = 1.0 - min(1.0, spread_pips / max_spread_pips)
         pos_score = max(0.0, 1.0 - open_positions_count / 2.0)
@@ -354,7 +370,14 @@ class ConfluenceEngine:
         factors.append(ConfluenceFactor("risk", "RISK_QUALITY", risk_final, 0.3,
                                         detail=f"RR={rr_ratio:.2f}, spread={spread_pips:.1f}, positions={open_positions_count}"))
 
+        # ── Category 9: Fibonacci Confirmation (weight=5%) ────────────────────
+        fibonacci_final = max(fib_score, 0.75 if zone_final >= 0.50 else 0.40)
+        fibonacci_final = min(1.0, fibonacci_final)
+        factors.append(ConfluenceFactor("fibonacci", "FIB_LEVEL_PROXIMITY", fibonacci_final, 1.0,
+                                        detail=f"Fib proximity score={fibonacci_final:.3f}"))
+
         # ── Weighted Final Score ───────────────────────────────────────────────
+        # v3: Redistributed weights — momentum 5%→3%, risk 3%→2%, fibonacci 5% new
         category_weights = {
             "structure": 0.25,
             "zone": 0.22,
@@ -362,8 +385,9 @@ class ConfluenceEngine:
             "displacement": 0.12,
             "session": 0.08,
             "price_position": 0.07,
-            "momentum": 0.05,
-            "risk": 0.03,
+            "momentum": 0.03,
+            "risk": 0.02,
+            "fibonacci": 0.03,
         }
         category_scores = {
             "structure": struct_final,
@@ -374,6 +398,7 @@ class ConfluenceEngine:
             "price_position": price_position_final,
             "momentum": momentum_final,
             "risk": risk_final,
+            "fibonacci": fibonacci_final,
         }
 
         total = sum(
@@ -384,7 +409,7 @@ class ConfluenceEngine:
 
         # ── Grade and Thresholds ───────────────────────────────────────────────
         from agent.config import settings
-        llm_threshold = getattr(settings, "confluence_llm_threshold", 0.50)
+        llm_threshold = getattr(settings, "confluence_llm_threshold", 0.60)
 
         grade_thresholds = [
             (0.92, "A+"),
@@ -432,6 +457,7 @@ class ConfluenceEngine:
             price_position_score=price_position_final,
             momentum_score=momentum_final,
             risk_score=risk_final,
+            fibonacci_score=fibonacci_final,
             rejection_reason=rejection_reason,
         )
 
@@ -444,16 +470,19 @@ class ConfluenceEngine:
         best = 0.0
         for z in zones:
             s = 0.0
+            dist = z.get("distance_points", 999)
             if z.get("price_is_inside", False):
                 s = 1.0
-            elif z.get("distance_points", 999) <= 3.0:
+            elif dist <= 5.0:
+                s = 0.95
+            elif dist <= 15.0:
                 s = 0.85
-            elif z.get("distance_points", 999) <= 6.0:
-                s = 0.65
-            elif z.get("distance_points", 999) <= 10.0:
-                s = 0.40
+            elif dist <= 30.0:
+                s = 0.75
+            elif dist <= 50.0:
+                s = 0.60
             else:
-                s = 0.10
+                s = 0.30
 
             # Freshness bonus (younger = fresher)
             age = z.get("age_bars", 100)

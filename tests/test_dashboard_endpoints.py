@@ -129,50 +129,34 @@ def test_internal_trade_flow():
 def test_open_trades_endpoint():
     import random
     ticket = random.randint(1000000, 9999999)
-    with TestClient(app) as client:
-        # Create an open trade first via the internal API
-        open_payload = {
-            "ticket": ticket,
-            "symbol": "XAUUSD",
-            "action": "BUY",
-            "lot_size": 0.05,
-            "entry_price": 2350.00,
-            "sl": 2340.00,
-            "tp": 2370.00,
-            "pattern": "Test Pattern",
-            "confidence": 0.90,
-            "reasoning": "Support test",
-            "dry_run": True
-        }
-        response = client.post("/api/internal/trade/open", json=open_payload)
-        assert response.status_code == 200
-
-        # Query open trades
-        response = client.get("/api/trades/open")
-        assert response.status_code == 200
-        data = response.json()
-        assert "positions" in data
-        assert "count" in data
-        
-        positions = data["positions"]
-        matched = [p for p in positions if p["ticket"] == ticket]
-        assert len(matched) == 1
-        pos = matched[0]
-        assert pos["symbol"] == "XAUUSD"
-        assert pos["type"] == "BUY"
-        assert pos["volume"] == 0.05
-        assert pos["price_open"] == 2350.00
-        assert "price_current" in pos
-        assert "profit" in pos
-        
-        # Clean up by closing it
-        close_payload = {
-            "ticket": ticket,
-            "close_price": 2355.00,
-            "pnl": 25.00,
-            "outcome": "WIN"
-        }
-        client.post("/api/internal/trade/close", json=close_payload)
+    mock_positions = [{
+        "ticket": ticket,
+        "symbol": "XAUUSD",
+        "type": "BUY",
+        "volume": 0.05,
+        "price_open": 2350.00,
+        "price_current": 2355.00,
+        "sl": 2340.00,
+        "tp": 2370.00,
+        "profit": 25.00,
+        "time_open": "2026-09-07T16:00:00Z"
+    }]
+    with patch("agent.data.mt5_feed.mt5_feed.get_open_positions", return_value=mock_positions):
+        with TestClient(app) as client:
+            response = client.get("/api/trades/open")
+            assert response.status_code == 200
+            data = response.json()
+            assert "positions" in data
+            assert "count" in data
+            
+            positions = data["positions"]
+            matched = [p for p in positions if p["ticket"] == ticket]
+            assert len(matched) == 1
+            pos = matched[0]
+            assert pos["symbol"] == "XAUUSD"
+            assert pos["type"] == "BUY"
+            assert pos["volume"] == 0.05
+            assert pos["price_open"] == 2350.00
 
 
 def test_internal_trade_open_duplicate_handling():

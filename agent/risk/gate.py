@@ -36,6 +36,16 @@ class RiskGate:
         self._daily_pnl: float = 0.0
         self._today_date: Optional[str] = None
         self._agent_paused: bool = False
+        self._loss_history: dict = {}  # key -> {"time": datetime, "entry_price": float}
+
+    def record_loss(self, symbol: str, action: str, entry_price: float) -> None:
+        """Record a losing trade to enforce directional cooldown and prevent repeated losses."""
+        key = f"{symbol.upper()}_{action.upper()}"
+        self._loss_history[key] = {
+            "time": datetime.now(timezone.utc),
+            "entry_price": entry_price,
+        }
+        logger.info(f"🛡️ Directional Loss Shield activated for {action} {symbol} at {entry_price:.2f} — 15m Cooldown Active")
 
     # ── State Setters ─────────────────────────────────────────────────────────
 
@@ -100,9 +110,15 @@ class RiskGate:
                 
                 if sl_distance_pips > 0:
                     risk_usd = balance * (settings.risk_percent / 100.0)
-                    # Standard lot sizing: Lot = Risk_USD / (SL_Pips * Pip_Value_Per_Lot)
-                    # For EURUSD, 1 lot = $10 per pip. JPY pairs are also approx $10 per pip for USD accounts.
-                    pip_value_per_lot = 10.0
+                    # Multi-Asset Pip Value Calibration:
+                    # Forex & Gold (0.01 / 0.0001 pip): $10.0 USD per pip per 1.0 lot
+                    # US30 / Indices (1.0 pt): $1.0 USD per point per 1.0 lot
+                    # Crypto / BTCUSD: $1.0 USD per point per 1.0 lot
+                    if any(x in sym_upper for x in ["US30", "DE30", "NDX", "SPX", "BTC", "ETH"]):
+                        pip_value_per_lot = 1.0
+                    else:
+                        pip_value_per_lot = 10.0
+
                     raw_lot = risk_usd / (sl_distance_pips * pip_value_per_lot)
                     # Clamp between 0.01 and 10.0 lots for safety
                     calculated_lot = max(0.01, min(10.0, round(raw_lot, 2)))
@@ -113,13 +129,14 @@ class RiskGate:
                 logger.error(f"Error calculating dynamic risk: {exc}")
 
         # ── Check 2: Confidence threshold ─────────────────────────────────────
-        min_conf = settings.min_confidence
+        min_conf = getattr(settings, "min_confidence", 0.70)
         try:
-            from agent.evolution.self_evolution import self_evolution_engine
-            evo_metrics = self_evolution_engine.get_metrics()
-            if evo_metrics.focus_mode:
-                min_conf = max(min_conf, evo_metrics.focus_min_confidence)
-                logger.info(f"High Focus Mode active: requiring min confidence >= {min_conf:.0%}")
+            if getattr(settings, "enable_focus_mode", True) and not getattr(settings, "strategy_mode", False):
+                from agent.evolution.self_evolution import self_evolution_engine
+                evo_metrics = self_evolution_engine.get_metrics()
+                if evo_metrics.focus_mode:
+                    min_conf = max(min_conf, evo_metrics.focus_min_confidence)
+                    logger.info(f"High Focus Mode active: requiring min confidence >= {min_conf:.0%}")
         except Exception:
             pass
 
@@ -164,7 +181,13 @@ class RiskGate:
 
         # ── Check 8: RR ratio ─────────────────────────────────────────────────
         if action in ("BUY", "SELL"):
-            required_rr = 0.3 if settings.scalping_mode else settings.min_rr_ratio
+            if getattr(settings, "pro_trader_mode", False):
+                required_rr = getattr(settings, "pro_trader_min_rr", 2.0)
+            elif settings.scalping_mode:
+                required_rr = 0.3
+            else:
+                required_rr = settings.min_rr_ratio
+
             if rr_ratio < required_rr:
                 failures.append(
                     f"LOW_RR: {rr_ratio:.2f} < {required_rr:.2f} required"
@@ -200,6 +223,61 @@ class RiskGate:
                 elif action == "SELL" and h1_trend == "BULLISH" and h4_trend == "BULLISH" and confidence < 0.75:
                     failures.append(f"TREND_MISALIGNMENT: M5={h1_trend}, M15={h4_trend} trends are strongly bullish")
 
+        # ── Check 11: Directional Loss Cooldown Shield ────────────────────────
+        key = f"{symbol.upper()}_{action.upper()}"
+        if hasattr(self, "_loss_history") and key in self._loss_history:
+            loss_info = self._loss_history[key]
+            elapsed_sec = (datetime.now(timezone.utc) - loss_info["time"]).total_seconds()
+            cooldown_period = 900  # 15 minutes (900 seconds)
+
+            if elapsed_sec < cooldown_period:
+                prev_entry = loss_info["entry_price"]
+                better_price = (action == "SELL" and entry > prev_entry + 0.50) or (action == "BUY" and entry < prev_entry - 0.50)
+                if not better_price and confidence < 0.80:
+                    mins_remaining = (cooldown_period - elapsed_sec) / 60.0
+                    failures.append(
+                        f"DIRECTIONAL_LOSS_COOLDOWN: Previous {action} {symbol} lost {elapsed_sec/60:.1f}m ago — "
+                        f"cooldown active for {mins_remaining:.1f}m (requires conf >=80% or better price than {prev_entry:.2f})"
+                    )
+
+        # ── Check 12: Capital Protection USD Risk Guard ──────────────────────
+        if action in ("BUY", "SELL") and entry > 0 and sl > 0:
+            try:
+                from agent.data.mt5_feed import mt5_feed
+                raw_bal = mt5_feed.get_account_balance() or 10000.0
+                raw_eq = mt5_feed.get_account_equity() or raw_bal
+                balance = min(raw_bal, raw_eq)
+
+                max_micro_cap = getattr(settings, "max_micro_account_loss_usd", 1.50)
+                max_risk_pct = getattr(settings, "max_trade_risk_percent", 2.0)
+
+                if balance < 50.0:
+                    allowed_risk_usd = min(max_micro_cap, max(0.50, balance * 0.15))
+                else:
+                    allowed_risk_usd = balance * (max_risk_pct / 100.0)
+
+                sl_dist_pts = abs(entry - sl)
+                sym_up = symbol.upper()
+
+                if any(x in sym_up for x in ["US30", "DE30", "NDX", "SPX", "BTC", "ETH"]):
+                    usd_per_point = 1.0 * calculated_lot
+                elif any(x in sym_up for x in ["XAU", "GOLD"]):
+                    usd_per_point = 100.0 * calculated_lot  # 0.01 lot = $1.0 USD / pt
+                elif "JPY" in sym_up:
+                    usd_per_point = 100.0 * calculated_lot
+                else:
+                    usd_per_point = 100000.0 * calculated_lot
+
+                actual_usd_risk = sl_dist_pts * usd_per_point
+
+                if actual_usd_risk > allowed_risk_usd * 1.05:
+                    failures.append(
+                        f"CAPITAL_PROTECTION_BLOCKED: Trade SL risk (${actual_usd_risk:.2f} USD) "
+                        f"exceeds max allowed capital risk (${allowed_risk_usd:.2f} USD for ${balance:.2f} balance, max 15% of micro balance or $1.50 cap)"
+                    )
+            except Exception as exc:
+                logger.error(f"Error evaluating capital protection risk guard: {exc}")
+
         if failures:
             reason = " | ".join(failures)
             logger.warning(f"Risk gate BLOCKED {action} {symbol}: {reason}")
@@ -218,22 +296,48 @@ class RiskGate:
 
     def check_session(self) -> Tuple[bool, str]:
         """
-        Check if current UTC time is within allowed trading sessions.
+        Check if current UTC time is within active market trading sessions.
         Returns (is_active, session_name).
         """
         now = datetime.now(timezone.utc)
+        weekday = now.weekday()  # 0=Monday ... 4=Friday, 5=Saturday, 6=Sunday
+
+        # Market close check on weekends (Saturday & Sunday before 22:00 UTC)
+        if weekday == 5 or (weekday == 6 and now.hour < 22):
+            logger.info(f"Market closed on weekend ({now.strftime('%A %H:%M')} UTC)")
+            return False, "Weekend (Market Closed)"
+
         current_time = now.strftime("%H:%M")
 
         def in_window(start: str, end: str) -> bool:
-            return start <= current_time <= end
+            if start <= end:
+                return start <= current_time <= end
+            else:
+                # Session wraps across midnight UTC (e.g. 22:00 to 07:00)
+                return current_time >= start or current_time <= end
 
-        if in_window(settings.london_session_start, settings.london_session_end):
+        # If strict session hours enforcement is explicitly enabled:
+        if getattr(settings, "enforce_session_hours", False):
+            if in_window(settings.london_session_start, settings.london_session_end):
+                return True, "London"
+            if in_window(settings.ny_session_start, settings.ny_session_end):
+                return True, "New York"
+            if in_window(getattr(settings, "asian_session_start", "22:00"), getattr(settings, "asian_session_end", "07:00")):
+                return True, "Asian"
+            logger.info(f"Outside enforced trading session hours at {current_time} UTC")
+            return False, "Outside Enforced Hours"
+
+        # Default 24/5 trading mode for XAUUSD & Forex: Active all weekday hours
+        if in_window("12:00", "16:00"):
+            return True, "London/NY Overlap"
+        elif in_window("07:00", "16:00"):
             return True, "London"
-        if in_window(settings.ny_session_start, settings.ny_session_end):
+        elif in_window("12:00", "21:00"):
             return True, "New York"
+        elif in_window("22:00", "07:00") or in_window("00:00", "08:00"):
+            return True, "Asian"
 
-        logger.debug(f"Outside trading sessions at {current_time} UTC")
-        return False, "Outside"
+        return True, "24H Market Open"
 
 
 # Singleton

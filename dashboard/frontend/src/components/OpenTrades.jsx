@@ -1,20 +1,21 @@
-import { TrendingUp, TrendingDown, Layers } from 'lucide-react';
+import { TrendingUp, TrendingDown, Layers, Shield, Crosshair } from 'lucide-react';
 
 export default function OpenTrades({ trades }) {
   return (
     <div className="card fade-in" style={{ display: 'flex', flexDirection: 'column' }}>
       <div className="card-header">
         <div className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Layers size={14} color="var(--accent)" />
-          ACTIVE OPEN POSITIONS
+          <Layers size={16} color="var(--accent)" />
+          ACTIVE INSTITUTIONAL POSITIONS
         </div>
-        <div className="card-tag">{trades.length} Active</div>
+        <div className="card-tag">{trades.length} / 2 ACTIVE</div>
       </div>
       
       <div className="card-body" style={{ flex: 1, padding: 0, overflowX: 'auto' }}>
         {trades.length === 0 ? (
-          <div style={{ display: 'flex', height: '180px', alignItems: 'center', justifycontent: 'center', justifyContent: 'center', color: 'var(--text2)', fontFamily: 'Space Mono', fontSize: '11px' }}>
-            No active open positions on MT5
+          <div style={{ display: 'flex', height: '180px', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text2)', fontFamily: 'Space Mono', fontSize: '11px', gap: '8px' }}>
+            <Shield size={22} color="var(--muted)" />
+            <span>No active open positions — Scanning market for 15M POI setups...</span>
           </div>
         ) : (
           <table className="table">
@@ -22,11 +23,11 @@ export default function OpenTrades({ trades }) {
               <tr>
                 <th>Symbol</th>
                 <th>Type</th>
-                <th>Lot</th>
-                <th>Entry</th>
-                <th>SL</th>
-                <th>TP</th>
-                <th style={{ textAlign: 'right' }}>Profit</th>
+                <th>Volume</th>
+                <th>Entry Price</th>
+                <th>Stop Loss</th>
+                <th>Take Profit</th>
+                <th style={{ textAlign: 'right' }}>Floating P&L</th>
               </tr>
             </thead>
             <tbody>
@@ -46,7 +47,10 @@ export default function OpenTrades({ trades }) {
                 return (
                   <tr key={pos.ticket} className="slide-in">
                     <td>
-                      <span style={{ fontWeight: 700, color: '#fff' }}>{pos.symbol}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Crosshair size={14} color="var(--accent)" />
+                        <span style={{ fontWeight: 800, color: '#fff', fontFamily: 'Syne', fontSize: '13px' }}>{pos.symbol}</span>
+                      </div>
                     </td>
                     <td>
                       <span className={`badge ${isBuy ? 'badge-buy' : 'badge-sell'}`} style={{ gap: '4px' }}>
@@ -54,11 +58,11 @@ export default function OpenTrades({ trades }) {
                         {action}
                       </span>
                     </td>
-                    <td style={{ color: 'var(--text)' }}>{lot}</td>
-                    <td style={{ color: 'var(--text2)' }}>{formatPrice(entryPrice)}</td>
-                    <td style={{ color: 'var(--text2)' }}>{formatPrice(pos.sl)}</td>
-                    <td style={{ color: 'var(--text2)' }}>{formatPrice(pos.tp)}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 700 }} className={profit >= 0 ? 'value-positive' : 'value-negative'}>
+                    <td style={{ color: 'var(--text)', fontFamily: 'Space Mono', fontWeight: 700 }}>{lot} Lot</td>
+                    <td style={{ color: 'var(--text2)', fontFamily: 'Space Mono' }}>{formatPrice(entryPrice)}</td>
+                    <td style={{ color: 'var(--sell)', fontFamily: 'Space Mono' }}>{formatPrice(pos.sl)}</td>
+                    <td style={{ color: 'var(--buy)', fontFamily: 'Space Mono' }}>{formatPrice(pos.tp)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '14px', fontFamily: 'Space Mono' }} className={profit >= 0 ? 'value-positive' : 'value-negative'}>
                       {profit >= 0 ? '+' : ''}${profit.toFixed(2)}
                     </td>
                   </tr>

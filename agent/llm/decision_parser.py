@@ -52,11 +52,14 @@ class TradeDecision:
 
     @property
     def pip_sl(self) -> float:
-        """SL distance in pips (rough)."""
+        """SL distance in pips (symbol-aware pip size)."""
+        pair_upper = (self.pair or "").upper()
+        # Gold, JPY pairs use 0.01 pip; standard forex uses 0.0001
+        pip_size = 0.01 if any(x in pair_upper for x in ["XAU", "GOLD", "JPY"]) else 0.0001
         if self.action == "BUY":
-            return abs(self.entry - self.sl) / 0.0001
+            return abs(self.entry - self.sl) / pip_size
         elif self.action == "SELL":
-            return abs(self.sl - self.entry) / 0.0001
+            return abs(self.sl - self.entry) / pip_size
         return 0.0
 
     def to_dict(self) -> dict:
@@ -462,35 +465,53 @@ class DecisionParser:
         try:
             return json.loads(repair)
         except Exception:
-            # Fallback: Regex field extraction
+            # Fallback: Regex field extraction from truncated/damaged JSON
             res = {}
-            act = re.search(r'"action"\s*:\s*"([^"]+)"', candidate, re.I)
+            act = re.search(r'"(?:action|signal|decision|direction|position|op)"\s*:\s*"([^"]+)"', candidate, re.I)
             if act:
                 res["action"] = act.group(1).upper()
-            conf = re.search(r'"confidence"\s*:\s*([0-9\.]+)', candidate, re.I)
+            else:
+                # Check for "buy": true / "sell": true or "buy": {...}
+                for sig in ["BUY", "SELL", "HOLD", "CLOSE"]:
+                    if re.search(rf'"{sig}"\s*:\s*(?:true|"yes"|{{)', candidate, re.I):
+                        res["action"] = sig
+                        break
+
+            conf = re.search(r'"(?:confidence|conf|probability|prob)"\s*:\s*([0-9\.]+)', candidate, re.I)
             if conf:
                 try:
-                    res["confidence"] = float(conf.group(1))
+                    c = float(conf.group(1))
+                    if c > 1.0:
+                        c /= 100.0
+                    res["confidence"] = c
                 except ValueError:
                     pass
-            entry = re.search(r'"entry"\s*:\s*([0-9\.]+)', candidate, re.I)
+
+            entry = re.search(r'"(?:entry|entry_price|price|open_price)"\s*:\s*([0-9\.]+)', candidate, re.I)
             if entry:
                 try:
                     res["entry"] = float(entry.group(1))
                 except ValueError:
                     pass
-            sl = re.search(r'"sl"\s*:\s*([0-9\.]+)', candidate, re.I)
+
+            sl = re.search(r'"(?:sl|stop_loss|stoploss|stop_price)"\s*:\s*([0-9\.]+)', candidate, re.I)
             if sl:
                 try:
                     res["sl"] = float(sl.group(1))
                 except ValueError:
                     pass
-            tp = re.search(r'"tp"\s*:\s*([0-9\.]+)', candidate, re.I)
+
+            tp = re.search(r'"(?:tp|take_profit|takeprofit|target|target_price|take_profit_1)"\s*:\s*([0-9\.]+)', candidate, re.I)
             if tp:
                 try:
                     res["tp"] = float(tp.group(1))
                 except ValueError:
                     pass
+
+            reasoning = re.search(r'"(?:reasoning|reason|trade_thesis|thesis|analysis|rationale)"\s*:\s*"([^"]+)"', candidate, re.I)
+            if reasoning:
+                res["reasoning"] = reasoning.group(1)
+
             return res if res else None
 
     def _hold(self, symbol: str, reason: str, raw: str) -> TradeDecision:

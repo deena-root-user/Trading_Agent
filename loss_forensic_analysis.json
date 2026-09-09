@@ -1,0 +1,3585 @@
+{
+  "summary": {
+    "total_trades": 501,
+    "total_losers": 257,
+    "total_winners": 204,
+    "total_breakeven": 40,
+    "category_A_count": 0,
+    "category_B_count": 11,
+    "category_C_count": 246,
+    "category_D_count": 0,
+    "preventable_loss_usd": -5622.101359999924,
+    "total_loss_usd": -5638.775079999921
+  },
+  "categories": {
+    "A": [],
+    "B": [
+      {
+        "timestamp": "2023-05-05 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.880000000000109,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6607,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6607 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2023-07-03 08:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -0.8550000000002455,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.616,
+        "holding_bars": 7,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6160 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2023-09-25 12:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.105000000000473,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6067,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6067 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2023-11-01 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -0.0899999999999181,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6231,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6231 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2023-11-08 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.620000000000573,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6093,
+        "holding_bars": 23,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6093 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2024-01-29 09:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -1.449999999999818,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6429,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6429 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2024-04-11 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -2.870000000002165,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6308,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6308 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2024-06-11 23:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -2.1787199999998847,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6261,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6261 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2024-11-21 03:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -2.199999999997999,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6549,
+        "holding_bars": 8,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6549 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2025-06-26 23:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.599999999998545,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6291,
+        "holding_bars": 3,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6291 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2025-08-29 07:00:00",
+        "direction": "LONG",
+        "pnl_usd": -0.8249999999975444,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6127,
+        "holding_bars": 3,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6127 (below 0.74)"
+        ]
+      }
+    ],
+    "C": [
+      {
+        "timestamp": "2023-01-18 05:00:00",
+        "direction": "LONG",
+        "pnl_usd": -9.97820000000047,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.8105,
+        "holding_bars": 15,
+        "issues": [
+          "C: OUTSIZED_LOSS: $-9.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-20 07:00:00",
+        "direction": "LONG",
+        "pnl_usd": -11.125899999999548,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6091,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6091 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-11.13 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-20 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -2.200000000000728,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7021,
+        "holding_bars": 3,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.7021 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate"
+        ]
+      },
+      {
+        "timestamp": "2023-01-23 08:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.135899999999085,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6481,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6481 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.14 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-23 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.989649999999074,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6157,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6157 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.99 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-23 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.070160000000214,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6051,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6051 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.07 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-26 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.080560000000332,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6021,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6021 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-10.08 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-26 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -11.015759999999318,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6541,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6541 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-11.02 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-01-31 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -11.710199999999077,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6178,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6178 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-11.71 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-02 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -5.559999999999491,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7148,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.7148 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-5.56 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-02 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.949759999999516,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6106,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6106 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-10.95 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-03 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.591439999999238,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6415,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6415 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.59 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-03 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.26531999999952,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6424,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6424 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.27 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-09 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -10.989160000000084,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6402,
+        "holding_bars": 20,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6402 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.99 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-10 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -11.10396000000037,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.646,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6460 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-11.10 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-14 03:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -11.057749999999942,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6862,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6862 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-11.06 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-14 08:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -3.719999999999345,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6245,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6245 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-3.72 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-14 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -9.35131999999976,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6053,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6053 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-9.35 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-16 06:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -3.959999999999809,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6034,
+        "holding_bars": 3,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6034 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-3.96 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-17 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -9.955160000000433,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6563,
+        "holding_bars": 12,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6563 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-9.96 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-17 19:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -11.185599999999797,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.691,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6910 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-11.19 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-02-28 19:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -10.4683,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6425,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6425 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-10.47 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-01 09:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -12.30776999999989,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.607,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6070 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-12.31 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-01 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -9.52039999999988,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6148,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6148 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-9.52 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-15 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -9.237840000000231,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6775,
+        "holding_bars": 41,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6775 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-9.24 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-15 21:00:00",
+        "direction": "LONG",
+        "pnl_usd": -11.447490000000016,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6253,
+        "holding_bars": 5,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6253 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-11.45 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-20 12:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.649219999999788,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6168,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6168 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-13.65 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-21 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.555559999999788,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6226,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6226 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-13.56 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-03-21 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.055799999999184,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7489,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: OUTSIZED_LOSS: $-13.06 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-04-05 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.7999999999997272,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6875,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6875 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate"
+        ]
+      },
+      {
+        "timestamp": "2023-04-06 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.276200000000244,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.714,
+        "holding_bars": 8,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.7140 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-13.28 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-04-10 04:00:00",
+        "direction": "LONG",
+        "pnl_usd": -12.982749999999896,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6619,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6619 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-12.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-04-10 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.2979499999999,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6348,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6348 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-13.30 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-04-14 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.3949999999997544,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6765,
+        "holding_bars": 3,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6765 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate"
+        ]
+      },
+      {
+        "timestamp": "2023-04-14 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -12.682759999999693,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6672,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6672 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-12.68 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-04-17 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -5.619999999999891,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6487,
+        "holding_bars": 11,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6487 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-5.62 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-04-19 12:00:00",
+        "direction": "LONG",
+        "pnl_usd": -12.92642999999998,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6648,
+        "holding_bars": 39,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6648 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-12.93 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-04 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -14.982959999999364,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7697,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-14.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-04 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.742799999999988,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.678,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6780 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-13.74 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-05 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -4.725000000000136,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6349,
+        "holding_bars": 14,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6349 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-4.73 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-16 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -13.737219999999754,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6868,
+        "holding_bars": 9,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6868 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-13.74 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-17 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -4.230000000000928,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6605,
+        "holding_bars": 7,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6605 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-4.23 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-17 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -14.483279999998558,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6613,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6613 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-14.48 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-19 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -13.929790000000594,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7326,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7326 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-13.93 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-19 19:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -14.056139999999914,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6189,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6189 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-14.06 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-22 02:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -13.578949999999852,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6084,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6084 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-13.58 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-30 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -13.539119999999455,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6502,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6502 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-13.54 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-30 19:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -5.1599999999994,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7465,
+        "holding_bars": 4,
+        "issues": [
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-5.16 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-05-31 09:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -14.65175999999883,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6367,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6367 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-14.65 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-01 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -13.035659999999098,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6517,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6517 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-13.04 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-20 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -15.145299999999226,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6285,
+        "holding_bars": 8,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6285 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.15 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-23 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.298380000000183,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6494,
+        "holding_bars": 20,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6494 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.30 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-23 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.361839999999575,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.639,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6390 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.36 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-26 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -5.920000000000073,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6181,
+        "holding_bars": 7,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6181 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-5.92 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-26 12:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -15.72935999999936,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6405,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6405 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.73 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-29 15:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.368959999999788,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7016,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7016 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.37 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-29 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -18.79719999999997,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.658,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6580 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-18.80 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-06-30 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.320079999999507,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6292,
+        "holding_bars": 11,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6292 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-17.32 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-03 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.51850000000104,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6667,
+        "holding_bars": 7,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6667 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.52 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-04 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.81644000000051,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6352,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6352 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-16.82 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-05 08:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -15.860000000000356,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6467,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6467 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.86 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-06 14:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -15.891369999998462,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6282,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6282 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.89 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-19 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.380189999999402,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6794,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6794 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.38 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-20 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.170399999998152,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6174,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6174 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-15.17 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-20 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -16.307729999999765,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6861,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6861 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.31 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-20 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -16.482239999999365,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6679,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6679 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.48 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-21 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.769500000001246,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6493,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6493 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.77 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-24 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.980800000000272,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6347,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6347 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-24 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.290009999999029,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6255,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6255 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.29 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-25 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.869429999999282,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6565,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6565 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.87 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-27 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -14.14174999999864,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6194,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6194 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-14.14 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-07-27 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -14.602139999999736,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6269,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6269 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-14.60 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-11 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -5.535000000000082,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.634,
+        "holding_bars": 5,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6340 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-5.54 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-17 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -8.049999999998365,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6133,
+        "holding_bars": 10,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6133 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-8.05 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-17 14:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -15.89852000000042,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6524,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6524 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-15.90 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-17 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.345450000000028,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7103,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7103 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.35 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-25 22:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.16320000000087,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6073,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6073 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-17.16 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-28 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.11427999999887,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6978,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6978 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.11 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-28 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.564989999999852,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6087,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6087 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-16.56 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-08-29 05:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -15.816720000000714,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.643,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6430 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.82 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-12 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.8599999999974,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6534,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6534 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.86 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-13 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.8599999999974,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6474,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6474 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.86 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-13 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.860000000000356,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6301,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6301 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-15.86 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-20 22:00:00",
+        "direction": "LONG",
+        "pnl_usd": -15.05439999999908,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6761,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6761 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-15.05 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-21 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -16.60476000000017,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6733,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6733 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-16.60 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-29 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.46143999999913,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.627,
+        "holding_bars": 11,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6270 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.46 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-09-29 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.580159999999523,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6983,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6983 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-16.58 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-03 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.841999999998734,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6613,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6613 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-17.84 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-03 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -18.046080000000075,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6512,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6512 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-18.05 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-11 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.780079999998634,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6107,
+        "holding_bars": 32,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6107 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-16.78 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-12 15:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.509909999998854,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6562,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6562 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.51 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-13 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.052600000000435,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6305,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6305 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.05 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-20 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -3.2900000000001914,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6367,
+        "holding_bars": 3,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6367 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-3.29 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-20 21:00:00",
+        "direction": "LONG",
+        "pnl_usd": -18.31696000000011,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6288,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6288 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-18.32 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-24 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -18.265599999998813,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6194,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6194 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-18.27 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-31 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -19.1200800000006,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6226,
+        "holding_bars": 35,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6226 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-19.12 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-10-31 20:00:00",
+        "direction": "LONG",
+        "pnl_usd": -19.04855999999927,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7296,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7296 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-19.05 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-11-01 03:00:00",
+        "direction": "LONG",
+        "pnl_usd": -5.724999999999909,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6311,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6311 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-5.72 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-11-01 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -18.40727999999945,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.7107,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7107 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-18.41 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-11-21 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -18.531899999999496,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.64,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6400 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-18.53 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-11-27 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -18.10556999999949,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6722,
+        "holding_bars": 11,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6722 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-18.11 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-12-01 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -18.500760000000355,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.729,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7290 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-18.50 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-12-05 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -7.239999999999782,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6331,
+        "holding_bars": 16,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6331 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-7.24 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-12-05 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -18.550050000000056,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6999,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6999 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-18.55 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-12-08 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -19.501379999999244,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6157,
+        "holding_bars": 62,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6157 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-19.50 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-12-08 20:00:00",
+        "direction": "LONG",
+        "pnl_usd": -19.709759999999505,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6225,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6225 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-19.71 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2023-12-11 06:00:00",
+        "direction": "LONG",
+        "pnl_usd": -17.414529999999335,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6351,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6351 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.41 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-08 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -17.419709999998986,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6611,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6611 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.42 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-18 09:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.699839999999313,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6143,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6143 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-17.70 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-19 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -7.975000000000137,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6283,
+        "holding_bars": 9,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6283 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-7.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-19 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -16.89085999999884,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6046,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6046 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-16.89 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-29 02:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.32289999999989,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6022,
+        "holding_bars": 25,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6022 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.32 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-29 20:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.200470000000227,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6503,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6503 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.20 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-30 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -3.3900000000003274,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6848,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6848 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-3.39 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-01-31 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.620400000000703,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6887,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6887 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.62 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-02-19 03:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -19.28748000000041,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.636,
+        "holding_bars": 13,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6360 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-19.29 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-02-20 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -18.79371000000083,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6434,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6434 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-18.79 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-02-23 19:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -17.728739999999334,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6084,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6084 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-17.73 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-03-12 21:00:00",
+        "direction": "LONG",
+        "pnl_usd": -22.89923999999883,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6538,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6538 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-22.90 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-03-21 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.294599999998358,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6168,
+        "holding_bars": 15,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6168 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-24.29 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-03-21 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.139619999998104,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7253,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7253 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-24.14 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-03-22 20:00:00",
+        "direction": "LONG",
+        "pnl_usd": -23.995859999999546,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.8012,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: OUTSIZED_LOSS: $-24.00 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-03 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -23.963700000000244,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.653,
+        "holding_bars": 9,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6530 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-23.96 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-04 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.159999999999854,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6227,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6227 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-10.16 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-05 04:00:00",
+        "direction": "LONG",
+        "pnl_usd": -25.271260000000893,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6563,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6563 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-25.27 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-08 02:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.833849999999984,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6293,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6293 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-24.83 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-08 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.259549999999308,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7311,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7311 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-24.26 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-10 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -27.358400000000984,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6248,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6248 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-27.36 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-10 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -26.07940999999937,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6839,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6839 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.08 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-16 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -29.406419999999343,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6363,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6363 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-29.41 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-18 00:00:00",
+        "direction": "LONG",
+        "pnl_usd": -29.30237999999736,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6339,
+        "holding_bars": 33,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6339 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-29.30 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-04-30 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.45511999999871,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6086,
+        "holding_bars": 118,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6086 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-28.46 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-05-08 14:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -28.68480999999747,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6145,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6145 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-28.68 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-05-22 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.99632000000201,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6406,
+        "holding_bars": 48,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6406 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-29.00 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-05-22 22:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.624330000001013,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6492,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6492 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-28.62 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-05-27 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -27.82870000000003,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6589,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6589 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-27.83 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-05-28 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -27.58440000000064,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6516,
+        "holding_bars": 14,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6516 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-27.58 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-10 15:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -26.310759999999394,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6292,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6292 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-26.31 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-11 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -26.55079999999998,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6923,
+        "holding_bars": 12,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6923 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.55 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-12 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -25.704839999998512,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6061,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6061 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-25.70 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-12 20:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -26.04960000000119,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6003,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6003 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.05 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-14 13:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -25.865820000002717,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6567,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6567 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-25.87 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-20 10:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -26.655799999998635,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6322,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6322 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.66 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-20 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -25.91468000000077,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.668,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6680 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-25.91 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-06-20 22:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -26.43983999999909,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6424,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6424 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.44 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-08 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.211529999997765,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6513,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6513 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-24.21 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-08 20:00:00",
+        "direction": "LONG",
+        "pnl_usd": -23.99579000000131,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6406,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6406 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-24.00 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-09 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.565899999997782,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6311,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6311 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-24.57 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-10 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -23.84440000000268,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6937,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6937 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-23.84 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-15 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.80199999999968,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6178,
+        "holding_bars": 14,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6178 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-24.80 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-16 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.04097999999749,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6346,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6346 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-24.04 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-17 20:00:00",
+        "direction": "LONG",
+        "pnl_usd": -25.99536000000171,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6042,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6042 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-26.00 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-19 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -23.978639999998453,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6011,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6011 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-23.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-07-25 05:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.86210999999776,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6164,
+        "holding_bars": 56,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6164 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-24.86 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-19 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -26.438879999997884,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.642,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6420 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-26.44 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-20 06:00:00",
+        "direction": "LONG",
+        "pnl_usd": -3.079999999997199,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.638,
+        "holding_bars": 10,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6380 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-3.08 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-21 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -25.997439999997823,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6199,
+        "holding_bars": 21,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6199 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-26.00 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-21 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -26.51256000000285,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7171,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7171 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.51 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-22 05:00:00",
+        "direction": "LONG",
+        "pnl_usd": -6.089999999999236,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6755,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6755 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-6.09 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-22 06:00:00",
+        "direction": "LONG",
+        "pnl_usd": -27.08306999999695,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6564,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6564 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-27.08 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-08-30 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -25.69739999999911,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.698,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6980 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-25.70 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-03 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -26.20872000000054,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6661,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6661 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-26.21 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-09 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -25.278319999997624,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6674,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6674 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-25.28 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-10 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.134550000000672,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6577,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6577 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-24.13 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-17 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -24.785729999997784,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7613,
+        "holding_bars": 4,
+        "issues": [
+          "C: OUTSIZED_LOSS: $-24.79 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-23 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.314600000003335,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6634,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6634 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-28.31 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-27 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -29.19266999999945,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6628,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6628 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-29.19 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-09-27 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.77080000000205,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6476,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6476 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-28.77 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-04 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -29.41928000000144,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6239,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6239 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-29.42 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-07 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.47950999999921,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6322,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6322 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-28.48 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-16 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -29.587319999999632,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6417,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6417 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-29.59 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-17 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -28.34929999999986,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6259,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6259 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-28.35 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-21 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -2.5850000000014006,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6175,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6175 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate"
+        ]
+      },
+      {
+        "timestamp": "2024-10-21 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -30.242959999997765,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6256,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6256 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-30.24 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-21 22:00:00",
+        "direction": "LONG",
+        "pnl_usd": -9.584999999996398,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6216,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6216 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-9.58 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-23 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -32.51568000000043,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6596,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6596 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-32.52 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-23 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -30.45529999999872,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7037,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7037 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-30.46 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-24 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -31.20578999999543,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6325,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6325 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-31.21 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-25 08:00:00",
+        "direction": "LONG",
+        "pnl_usd": -3.951839999997901,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6443,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6443 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-3.95 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-10-30 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -1.860000000002401,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6198,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6198 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate"
+        ]
+      },
+      {
+        "timestamp": "2024-10-31 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -34.324549999995725,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6238,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6238 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-34.32 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-06 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -34.60559999999987,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6773,
+        "holding_bars": 36,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6773 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-34.61 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-12 15:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -35.89992000000302,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6433,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6433 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-35.90 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-13 04:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -34.109520000001794,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6383,
+        "holding_bars": 8,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6383 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-34.11 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-18 04:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -36.71543999999994,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6398,
+        "holding_bars": 30,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6398 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-36.72 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-18 12:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -35.2736999999961,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6561,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6561 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-35.27 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-20 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -35.411739999996826,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6463,
+        "holding_bars": 11,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6463 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-35.41 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-22 04:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -36.996000000001,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6551,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6551 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-37.00 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-22 12:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -35.85340000000088,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6328,
+        "holding_bars": 5,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6328 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-35.85 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-22 13:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -37.094300000003386,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6009,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6009 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-37.09 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-11-22 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -37.184130000000096,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.605,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6050 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-37.18 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-12-12 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -4.400000000000546,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6096,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6096 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-4.40 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-12-13 12:00:00",
+        "direction": "LONG",
+        "pnl_usd": -36.88896000000023,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7184,
+        "holding_bars": 17,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.7184 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-36.89 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-12-13 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -35.57099999999991,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6111,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6111 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-35.57 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-12-17 12:00:00",
+        "direction": "LONG",
+        "pnl_usd": -35.230320000000575,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6575,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6575 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-35.23 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2024-12-20 18:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -35.44716999999673,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6728,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6728 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-35.45 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-02 13:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -33.66188000000421,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6014,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6014 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-33.66 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-02 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -34.02608999999984,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6295,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6295 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-34.03 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-07 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -33.04007999999703,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6092,
+        "holding_bars": 51,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6092 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-33.04 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-17 08:00:00",
+        "direction": "LONG",
+        "pnl_usd": -10.945000000003802,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6126,
+        "holding_bars": 14,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6126 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-10.95 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-21 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -34.60709999999836,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6712,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6712 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-34.61 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-27 05:00:00",
+        "direction": "LONG",
+        "pnl_usd": -34.93487999999888,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6644,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6644 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-34.93 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-01-27 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -32.7481200000002,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7552,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: OUTSIZED_LOSS: $-32.75 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-03 02:00:00",
+        "direction": "LONG",
+        "pnl_usd": -34.70669999999701,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6356,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6356 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-34.71 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-03 06:00:00",
+        "direction": "LONG",
+        "pnl_usd": -37.3744800000004,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6284,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6284 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-37.37 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-04 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -37.26660000000266,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6312,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6312 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-37.27 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-06 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -38.83495000000221,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.7394,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7394 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-38.83 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-06 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -39.16925999999967,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6393,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6393 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-39.17 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-12 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -6.254999999997381,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6027,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6027 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-6.25 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-12 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -44.21538000000146,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.61,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6100 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-44.22 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-14 19:00:00",
+        "direction": "LONG",
+        "pnl_usd": -40.19580000000269,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6082,
+        "holding_bars": 43,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6082 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-40.20 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-19 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -41.21168999999964,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6414,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6414 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-41.21 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-20 14:00:00",
+        "direction": "LONG",
+        "pnl_usd": -41.97621999999956,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7132,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7132 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-41.98 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-02-21 04:00:00",
+        "direction": "LONG",
+        "pnl_usd": -39.49860000000172,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6471,
+        "holding_bars": 9,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6471 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-39.50 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-03-18 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -41.10787999999866,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6383,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6383 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-41.11 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-03-21 06:00:00",
+        "direction": "LONG",
+        "pnl_usd": -42.67822000000069,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.701,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7010 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-42.68 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-03-28 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.79592999999977,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.624,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6240 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-47.80 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-03-28 17:00:00",
+        "direction": "LONG",
+        "pnl_usd": -46.67015999999603,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6389,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6389 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-46.67 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-04-01 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -46.45280000000185,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6101,
+        "holding_bars": 5,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6101 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-46.45 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-04-02 07:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.16329999999744,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6784,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6784 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-47.16 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-06-25 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -46.11156000000119,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6041,
+        "holding_bars": 3,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 3 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6041 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-46.11 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-06-26 12:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.22215999999935,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6271,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6271 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-47.22 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-02 13:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -46.34255999999914,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6246,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6246 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-46.34 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-03 08:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -45.4890000000014,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6011,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6011 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-45.49 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-04 09:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -45.18876999999748,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6001,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6001 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-45.19 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-07 19:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -46.61279999999806,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6095,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6095 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-46.61 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-10 11:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -2.9150000000036016,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.623,
+        "holding_bars": 41,
+        "issues": [
+          "C: STALL_TIMEOUT_LOSS: held 41 bars, pnl_r=-0.07",
+          "C: LOW_CONFLUENCE: score=0.6230 (below 0.74)"
+        ]
+      },
+      {
+        "timestamp": "2025-07-23 16:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.891399999998605,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.645,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6450 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-47.89 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-24 10:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.1044000000029,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.7254,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7254 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-47.10 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-24 15:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.2631999999976,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.747,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: OUTSIZED_LOSS: $-47.26 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-07-25 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -46.23657999999659,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6099,
+        "holding_bars": 5,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6099 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-46.24 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-05 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -47.76239999999689,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6041,
+        "holding_bars": 9,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6041 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-47.76 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-07 05:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -48.50404000000026,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6007,
+        "holding_bars": 10,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6007 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-48.50 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-20 16:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -47.737600000000384,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7096,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.7096 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-47.74 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-25 14:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -3.1499999999937245,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6503,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6503 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-3.15 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-25 17:00:00",
+        "direction": "SHORT",
+        "pnl_usd": -47.31903999999486,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "HTF_LTF_SMC",
+        "confluence": 0.6599,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6599 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-47.32 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-28 03:00:00",
+        "direction": "LONG",
+        "pnl_usd": -6.695000000004257,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6428,
+        "holding_bars": 6,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6428 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-6.70 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-29 13:00:00",
+        "direction": "LONG",
+        "pnl_usd": -47.330210000000086,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.7269,
+        "holding_bars": 4,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.7269 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-47.33 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-08-29 21:00:00",
+        "direction": "LONG",
+        "pnl_usd": -8.470000000000255,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6473,
+        "holding_bars": 2,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6473 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-8.47 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-09-02 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -48.928100000002814,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6285,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6285 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-48.93 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-09-09 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -56.73503999999775,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6439,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6439 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-56.74 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-09-16 05:00:00",
+        "direction": "LONG",
+        "pnl_usd": -54.96347999999626,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6253,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6253 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-54.96 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-09-16 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -56.22816000000057,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "BOS_CONTINUATION",
+        "confluence": 0.6205,
+        "holding_bars": 1,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 1 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6205 (below 0.74)",
+          "C: WEAK_STRATEGY: BOS_CONTINUATION has 30% win rate",
+          "C: OUTSIZED_LOSS: $-56.23 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-09-17 11:00:00",
+        "direction": "LONG",
+        "pnl_usd": -54.37726000000021,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6129,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6129 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-54.38 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-09-19 09:00:00",
+        "direction": "LONG",
+        "pnl_usd": -54.95544999999993,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6302,
+        "holding_bars": 2,
+        "issues": [
+          "C: INSTANT_SL_HIT: SL hit in 2 bars \u2014 likely bad entry timing",
+          "C: LOW_CONFLUENCE: score=0.6302 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-54.96 exceeds 6% of initial balance"
+        ]
+      },
+      {
+        "timestamp": "2025-12-05 18:00:00",
+        "direction": "LONG",
+        "pnl_usd": -57.12804000000688,
+        "regime": "TRENDING_MODERATE",
+        "strategy": "SMC_INDUCEMENT_SWEEP",
+        "confluence": 0.6443,
+        "holding_bars": 5,
+        "issues": [
+          "C: LOW_CONFLUENCE: score=0.6443 (below 0.74)",
+          "C: OUTSIZED_LOSS: $-57.13 exceeds 6% of initial balance"
+        ]
+      }
+    ],
+    "D": []
+  }
+}

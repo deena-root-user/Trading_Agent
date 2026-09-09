@@ -15,6 +15,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from loguru import logger
 
 from agent.config import settings
@@ -75,6 +76,7 @@ class PaxisAgent:
         self._daily_wins: int = 0
         self._daily_losses: int = 0
         self._recent_trades: List[dict] = []
+        self._last_sent_upcoming_setups: Dict[str, dict] = {}
         self._main_cycle_lock = threading.Lock()
         self._auto_scalp_cycle_lock = threading.Lock()
 
@@ -123,14 +125,14 @@ class PaxisAgent:
         telegram_bot.start_polling()
         telegram_bot.send_startup(dry_run=settings.dry_run)
 
-        # Schedule main cycle
+        # Schedule main cycle aligned at second=2 of every minute (or N minutes)
+        # to ensure execution happens right after 1M candle close
         self._scheduler.add_job(
             self._run_cycle,
-            "interval",
-            minutes=settings.trade_cycle_minutes,
+            CronTrigger(minute=f"*/{settings.trade_cycle_minutes}", second=2, timezone="UTC"),
             id="main_cycle",
             next_run_time=datetime.now(timezone.utc),  # Run immediately on start
-            max_instances=1,
+            max_instances=2,
             coalesce=True,
             misfire_grace_time=120,
         )
@@ -236,6 +238,37 @@ class PaxisAgent:
         except Exception as exc:
             logger.error(f"Failed to sync DB config: {exc}")
 
+    # ── Position Focus Mode ─────────────────────────────────────────────────
+
+    def _manage_open_positions_focus(self, positions: List[dict]) -> None:
+        """When max trades are active, focus entirely on position management."""
+        for pos in positions:
+            ticket = pos["ticket"]
+            pnl = pos.get("profit", 0.0)
+            entry = pos["price_open"]
+            current = pos["price_current"]
+            symbol = pos["symbol"]
+            action = pos["type"]
+            sl = pos.get("sl", 0.0)
+            tp = pos.get("tp", 0.0)
+
+            # Calculate R-multiple for this position
+            r_multiple = 0.0
+            if sl > 0 and entry > 0:
+                risk_dist = abs(entry - sl)
+                if risk_dist > 0:
+                    if action == "BUY":
+                        profit_dist = current - entry
+                    else:
+                        profit_dist = entry - current
+                    r_multiple = profit_dist / risk_dist
+
+            logger.info(
+                f"  📊 #{ticket} {action} {symbol} | "
+                f"PnL={pnl:+.2f} USD | R={r_multiple:+.1f}R | "
+                f"Entry={entry:.3f} | Current={current:.3f} | SL={sl:.3f} | TP={tp:.3f}"
+            )
+
     # ── Main Trading Cycle ────────────────────────────────────────────────────
 
     def _run_cycle(self) -> None:
@@ -272,6 +305,17 @@ class PaxisAgent:
         """Full analysis pipeline for a single trading pair."""
         logger.info(f"Processing {symbol}... (Pro Trader Mode: {settings.pro_trader_mode})")
 
+        # ── 0. MAX TRADE FOCUS MODE — Skip analysis when positions are full ──
+        early_positions = mt5_feed.get_open_positions()
+        if len(early_positions) >= settings.max_open_trades:
+            total_pnl = sum(p.get("profit", 0.0) for p in early_positions)
+            logger.info(
+                f"🔒 MAX TRADES ACTIVE ({len(early_positions)}/{settings.max_open_trades}) — "
+                f"Focus mode: managing open positions | Total floating PnL: {total_pnl:+.2f} USD"
+            )
+            self._manage_open_positions_focus(early_positions)
+            return
+
         # ── 1. Fetch Data ─────────────────────────────────────────────────────
         if getattr(settings, "pro_trader_mode", False):
             tf1, tf2, tf3, tf4 = "M1", "M15", "H1", "H4"
@@ -298,11 +342,12 @@ class PaxisAgent:
 
         # ── 2. Calculate Indicators & SMC ────────────────────────────────────
         from agent.data.smc_engine import smc_engine
+        curr_px = (tick.bid + tick.ask) / 2.0 if tick else 0.0
         if getattr(settings, "pro_trader_mode", False):
-            smc_4h_data = smc_engine.analyze(df_4h, symbol, "4H").to_dict() if df_4h is not None else None
-            smc_1h_data = smc_engine.analyze(df_1h, symbol, "1H").to_dict() if df_1h is not None else None
-            smc_15m_data = smc_engine.analyze(df_15m, symbol, "15M").to_dict() if df_15m is not None else None
-            smc_1m_data = smc_engine.analyze(df_1m, symbol, "1M").to_dict() if df_1m is not None else None
+            smc_4h_data = smc_engine.analyze(df_4h, symbol, "4H", current_price=curr_px).to_dict() if df_4h is not None else None
+            smc_1h_data = smc_engine.analyze(df_1h, symbol, "1H", current_price=curr_px).to_dict() if df_1h is not None else None
+            smc_15m_data = smc_engine.analyze(df_15m, symbol, "15M", current_price=curr_px).to_dict() if df_15m is not None else None
+            smc_1m_data = smc_engine.analyze(df_1m, symbol, "1M", current_price=curr_px).to_dict() if df_1m is not None else None
         else:
             smc_4h_data = smc_1h_data = smc_15m_data = smc_1m_data = None
 
@@ -318,34 +363,34 @@ class PaxisAgent:
         tf2_trend = snap_tf2.ema_trend if snap_tf2 else "NEUTRAL"
         tf3_trend = snap_tf3.ema_trend if snap_tf3 else "NEUTRAL"
 
-        # ── 3. Screenshot Chart (only in legacy mode — disabled in Pro Trader v2) ──
+        # ── 3. Screenshot Chart (Vision Mode Support) ──
         chart_b64 = None
-        if not (getattr(settings, "pro_trader_mode", False) and PRO_TRADER_PIPELINE_V2):
-            if settings.enable_vision and not ollama_client.should_skip_vision():
-                if getattr(settings, "pro_trader_mode", False):
-                    chart_images = chart_capture.capture_pro_trader_multi_images(
-                        symbol=symbol,
+        if settings.enable_vision and not ollama_client.should_skip_vision():
+            from pathlib import Path
+            if getattr(settings, "pro_trader_mode", False):
+                chart_images = chart_capture.capture_pro_trader_multi_images(
+                    symbol=symbol,
+                    use_tv_scrape=getattr(settings, "pro_trader_use_tradingview_scrape", True),
+                )
+                grid_path = Path("logs/screenshots") / f"paxis_{symbol}_tv_pro_trader.jpg"
+                if grid_path.exists():
+                    try:
+                        import base64
+                        with open(grid_path, "rb") as gf:
+                            chart_b64 = [base64.b64encode(gf.read()).decode("utf-8")]
+                    except Exception:
+                        chart_b64 = chart_images
+                else:
+                    chart_b64 = chart_images if chart_images else chart_capture.capture_pro_trader_grid(
+                        symbol=symbol, df_4h=df_4h, df_1h=df_1h, df_15m=df_15m, df_1m=df_1m,
                         use_tv_scrape=getattr(settings, "pro_trader_use_tradingview_scrape", True),
                     )
-                    grid_path = Path("logs/screenshots") / f"paxis_{symbol}_tv_pro_trader.jpg"
-                    if grid_path.exists():
-                        try:
-                            import base64
-                            with open(grid_path, "rb") as gf:
-                                chart_b64 = [base64.b64encode(gf.read()).decode("utf-8")]
-                        except Exception:
-                            chart_b64 = chart_images
-                    else:
-                        chart_b64 = chart_images if chart_images else chart_capture.capture_pro_trader_grid(
-                            symbol=symbol, df_4h=df_4h, df_1h=df_1h, df_15m=df_15m, df_1m=df_1m,
-                            use_tv_scrape=getattr(settings, "pro_trader_use_tradingview_scrape", True),
-                        )
-                else:
-                    chart_b64 = chart_capture.capture(symbol, df=df_tf1)
-                if chart_b64 is None:
-                    logger.warning(f"No chart screenshot for {symbol} — using indicators only")
             else:
-                logger.info(f"Vision disabled or skipping — using text indicators for {symbol}")
+                chart_b64 = chart_capture.capture(symbol, df=df_tf1)
+            if chart_b64 is None:
+                logger.warning(f"No chart screenshot for {symbol} — using indicators only")
+        else:
+            logger.info(f"Vision disabled or skipping — using text indicators for {symbol}")
 
         # ── 4. Fetch News ─────────────────────────────────────────────────────
         news_blocked, news_reason = economic_calendar.is_blackout(symbol, settings.news_blackout_minutes)
@@ -395,17 +440,99 @@ class PaxisAgent:
                 daily_pnl_usd=self._daily_pnl,
             )
 
-            # Log decision
-            logger.info(
-                f"[PRO TRADER v2] {symbol}: {pt_decision.action} | "
-                f"conf={pt_decision.confidence:.2f} | grade={pt_decision.signal_grade} | "
-                f"regime={pt_decision.regime} | strategy={pt_decision.strategy} | "
-                f"confluence={pt_decision.confluence_score:.3f} | "
-                f"pipeline={pt_decision.pipeline_elapsed_ms:.0f}ms"
-            )
+
 
             if not pt_decision.is_actionable:
                 block_stage = pt_decision.pipeline_stage_blocked
+
+                # Smart Telegram notification for upcoming POI setup zone
+                if pt_decision.entry > 0 and pt_decision.strategy:
+                    curr_px = (tick.bid + tick.ask) / 2.0 if tick else pt_decision.entry
+                    trade_dir = getattr(pt_decision, "direction", "") or pt_decision.pattern or "SHORT"
+                    if trade_dir == "HOLD":
+                        trade_dir = "SHORT" if pt_decision.sl > pt_decision.entry else "LONG"
+
+                    prev_setup = self._last_sent_upcoming_setups.get(symbol)
+                    should_send = False
+                    is_update = False
+
+                    # Threshold for parameter changes before resending update
+                    if "XAU" in symbol or "GOLD" in symbol:
+                        threshold = 0.50
+                    elif "US30" in symbol or "NAS" in symbol or "SPX" in symbol:
+                        threshold = 5.00
+                    elif "BTC" in symbol:
+                        threshold = 10.00
+                    else:
+                        threshold = 0.0005  # 5 pips FX
+
+                    if not prev_setup:
+                        should_send = True
+                        is_update = False
+                    else:
+                        entry_shift = abs(pt_decision.entry - prev_setup.get("entry", 0.0))
+                        sl_shift = abs(pt_decision.sl - prev_setup.get("sl", 0.0))
+                        dir_changed = prev_setup.get("direction") != trade_dir
+                        strat_changed = prev_setup.get("strategy") != pt_decision.strategy
+
+                        if entry_shift > threshold or sl_shift > threshold or dir_changed or strat_changed:
+                            should_send = True
+                            is_update = True
+
+                    # Only send when setup is NEW or parameters have CHANGED
+                    if should_send:
+                        mech_text = (
+                            f"Strategy: {pt_decision.strategy} | 18-Pt Validator Score: {pt_decision.validator_score:.2f} | "
+                            f"Regime: {pt_decision.regime} | Conf: {pt_decision.confidence:.0%}"
+                        )
+                        llm_text = pt_decision.reasoning if not settings.strategy_mode else "Pure Deterministic Mechanical SMC Mode (0 LLM Tokens, <2ms speed)"
+                        telegram_bot.send_upcoming_trade(
+                            symbol=symbol,
+                            direction=trade_dir,
+                            strategy=pt_decision.strategy,
+                            regime=pt_decision.regime,
+                            entry=pt_decision.entry,
+                            sl=pt_decision.sl,
+                            tp1=pt_decision.tp1,
+                            tp2=pt_decision.tp,
+                            rr_ratio=pt_decision.rr_ratio,
+                            lot_size=pt_decision.lot_size,
+                            reasoning=pt_decision.reasoning,
+                            current_price=curr_px,
+                            signal_grade=pt_decision.signal_grade,
+                            tp3=getattr(pt_decision, "tp3", None),
+                            is_update=is_update,
+                            mechanical_analysis=mech_text,
+                            llm_analysis=llm_text,
+                        )
+                        try:
+                            from agent.evolution.self_evolution import self_evolution_engine
+                            self_evolution_engine.record_upcoming_setup(
+                                symbol=symbol,
+                                direction=trade_dir,
+                                entry=pt_decision.entry,
+                                sl=pt_decision.sl,
+                                tp1=pt_decision.tp1,
+                                tp2=pt_decision.tp,
+                                strategy=pt_decision.strategy,
+                                regime=pt_decision.regime,
+                                rr_ratio=pt_decision.rr_ratio,
+                            )
+                        except Exception as exc:
+                            logger.error(f"Error recording upcoming setup to self_evolution: {exc}")
+
+                        self._last_sent_upcoming_setups[symbol] = {
+                            "entry": pt_decision.entry,
+                            "sl": pt_decision.sl,
+                            "direction": trade_dir,
+                            "strategy": pt_decision.strategy,
+                            "timestamp": time.time(),
+                        }
+                    else:
+                        logger.debug(f"[{symbol}] Upcoming setup unchanged — skipping duplicate Telegram alert")
+                else:
+                    self._last_sent_upcoming_setups.pop(symbol, None)
+
                 dashboard_client.log_decision(
                     symbol=symbol,
                     action="HOLD",
@@ -470,20 +597,32 @@ class PaxisAgent:
             # Use v2 pipeline lot size from risk gate
             target_lot = risk_result.calculated_lot
 
-            # Telegram signal
-            telegram_bot.send_trade_signal(
-                symbol=symbol,
-                action=pt_decision.action,
-                entry=pt_decision.entry,
-                sl=pt_decision.sl,
-                tp=pt_decision.tp,
-                confidence=pt_decision.confidence,
-                reasoning=(
-                    f"Grade={pt_decision.signal_grade} | Regime={pt_decision.regime} | "
-                    f"Strategy={pt_decision.strategy} | Confluence={pt_decision.confluence_score:.2f} | "
-                    f"{pt_decision.reasoning}"
-                ),
-            )
+            # ── Candle Close Confirmation — prevent mid-candle wick entries ──
+            if settings.require_candle_close_confirmation:
+                now_cc = datetime.now(timezone.utc)
+                seconds_into_candle = now_cc.second % 60
+                max_window = getattr(settings, "candle_close_window_seconds", 25)
+                if seconds_into_candle > max_window:
+                    logger.info(
+                        f"⏳ Candle close confirmation: {seconds_into_candle}s into current 1M candle — "
+                        f"deferring {pt_decision.action} {symbol} entry to next cycle (need ≤{max_window}s)"
+                    )
+                    dashboard_client.log_decision(
+                        symbol=symbol,
+                        action=pt_decision.action,
+                        confidence=pt_decision.confidence,
+                        entry=pt_decision.entry,
+                        sl=pt_decision.sl,
+                        tp=pt_decision.tp,
+                        rr_ratio=pt_decision.rr_ratio,
+                        pattern=pt_decision.pattern,
+                        session=session,
+                        reasoning=f"CANDLE_CLOSE_WAIT: {seconds_into_candle}s into candle, need ≤{max_window}s | {pt_decision.reasoning}",
+                        risk_passed=True,
+                        block_reason="CANDLE_CLOSE_WAIT",
+                        executed=False,
+                    )
+                    return
 
             # Execute
             if not settings.dry_run:
@@ -491,11 +630,55 @@ class PaxisAgent:
                             f"SL={pt_decision.sl:.5f} | TP={pt_decision.tp:.5f} | lot={target_lot}")
                 order_result = mt5_bridge.place_order(
                     symbol=symbol,
-                    order_type=pt_decision.action,
-                    lot=target_lot,
+                    action=pt_decision.action,
                     sl=pt_decision.sl,
                     tp=pt_decision.tp,
+                    lot_size=target_lot,
                 )
+                if order_result.success:
+                    # ── 2nd Trade Protection: Lock Trade 1 profit when opening Trade 2 ──
+                    if settings.second_trade_lock_first_profit and len(open_positions) >= 1:
+                        from agent.execution.order_tracker import order_tracker
+                        for existing_pos in open_positions:
+                            existing_pnl = existing_pos.get("profit", 0.0)
+                            if existing_pnl > 0:
+                                entry_existing = existing_pos["price_open"]
+                                sym = existing_pos["symbol"].upper()
+                                buffer = 0.30 if any(x in sym for x in ["XAU", "GOLD"]) else 0.00020
+                                if existing_pos["type"] == "BUY":
+                                    be_sl = round(entry_existing + buffer, 5)
+                                    if be_sl > existing_pos.get("sl", 0.0):
+                                        order_tracker.modify_position_stops(
+                                            existing_pos["ticket"], existing_pos["symbol"],
+                                            be_sl, existing_pos.get("tp", 0.0)
+                                        )
+                                        logger.info(f"🛡️ Protected Trade 1 #{existing_pos['ticket']}: moved SL to breakeven {be_sl:.5f}")
+                                elif existing_pos["type"] == "SELL":
+                                    be_sl = round(entry_existing - buffer, 5)
+                                    if be_sl < existing_pos.get("sl", 0.0):
+                                        order_tracker.modify_position_stops(
+                                            existing_pos["ticket"], existing_pos["symbol"],
+                                            be_sl, existing_pos.get("tp", 0.0)
+                                        )
+                                        logger.info(f"🛡️ Protected Trade 1 #{existing_pos['ticket']}: moved SL to breakeven {be_sl:.5f}")
+
+                    # Telegram signal — only sent AFTER successful order execution
+                    telegram_bot.send_trade_open(
+                        action=pt_decision.action,
+                        symbol=symbol,
+                        entry=pt_decision.entry,
+                        sl=pt_decision.sl,
+                        tp=pt_decision.tp,
+                        confidence=pt_decision.confidence,
+                        pattern=pt_decision.strategy or pt_decision.pattern,
+                        reasoning=(
+                            f"Grade={pt_decision.signal_grade} | Regime={pt_decision.regime} | "
+                            f"Strategy={pt_decision.strategy} | Confluence={pt_decision.confluence_score:.2f} | "
+                            f"{pt_decision.reasoning}"
+                        ),
+                        lot_size=risk_result.calculated_lot,
+                        dry_run=settings.dry_run,
+                    )
                 dashboard_client.log_decision(
                     symbol=symbol,
                     action=pt_decision.action,
@@ -508,11 +691,27 @@ class PaxisAgent:
                     session=session,
                     reasoning=pt_decision.reasoning,
                     risk_passed=True,
-                    block_reason="",
-                    executed=True,
+                    block_reason="" if order_result.success else f"Order failed: {order_result.error}",
+                    executed=order_result.success,
                 )
             else:
                 logger.info(f"[DRY RUN] Would execute {pt_decision.action} {symbol} @ {pt_decision.entry:.5f}")
+                telegram_bot.send_trade_open(
+                    action=pt_decision.action,
+                    symbol=symbol,
+                    entry=pt_decision.entry,
+                    sl=pt_decision.sl,
+                    tp=pt_decision.tp,
+                    confidence=pt_decision.confidence,
+                    pattern=pt_decision.strategy or pt_decision.pattern,
+                    reasoning=(
+                        f"Grade={pt_decision.signal_grade} | Regime={pt_decision.regime} | "
+                        f"Strategy={pt_decision.strategy} | Confluence={pt_decision.confluence_score:.2f} | "
+                        f"{pt_decision.reasoning}"
+                    ),
+                    lot_size=risk_result.calculated_lot,
+                    dry_run=settings.dry_run,
+                )
                 dashboard_client.log_decision(
                     symbol=symbol,
                     action=pt_decision.action,
@@ -694,9 +893,9 @@ class PaxisAgent:
                 symbol=symbol,
                 action=decision.action,
                 confidence=decision.confidence,
-                entry=decision.entry,
-                sl=decision.sl,
-                tp=decision.tp,
+                entry=exec_entry,
+                sl=exec_sl,
+                tp=exec_tp,
                 rr_ratio=decision.rr_ratio,
                 pattern=decision.pattern,
                 session=session,
@@ -710,9 +909,9 @@ class PaxisAgent:
                 symbol=symbol,
                 action=decision.action,
                 lot_size=target_lot,
-                entry_price=order.price or decision.entry,
-                sl=decision.sl,
-                tp=decision.tp,
+                entry_price=order.price or exec_entry,
+                sl=exec_sl,
+                tp=exec_tp,
                 pattern=decision.pattern,
                 confidence=decision.confidence,
                 reasoning=decision.reasoning,
@@ -721,9 +920,9 @@ class PaxisAgent:
             telegram_bot.send_trade_open(
                 action=decision.action,
                 symbol=symbol,
-                entry=order.price or decision.entry,
-                sl=decision.sl,
-                tp=decision.tp,
+                entry=order.price or exec_entry,
+                sl=exec_sl,
+                tp=exec_tp,
                 confidence=decision.confidence,
                 pattern=decision.pattern,
                 reasoning=decision.trade_thesis or decision.reasoning,
@@ -734,7 +933,7 @@ class PaxisAgent:
                 setup_15m_poi=decision.setup_15m_poi,
                 micro_1m_trigger=decision.micro_1m_trigger,
             )
-            # Store for recent trade history
+            # Store for recent trade history (capped to prevent memory leak)
             self._recent_trades.append({
                 "action": decision.action,
                 "symbol": symbol,
@@ -742,6 +941,7 @@ class PaxisAgent:
                 "pnl": 0.0,  # Will be updated on close
                 "ticket": order.ticket,
             })
+            self._recent_trades = self._recent_trades[-50:]
         else:
             logger.error(f"Order failed for {symbol}: {order.error}")
             telegram_bot.send_error(f"Order FAILED {symbol}: {order.error}")
@@ -974,6 +1174,7 @@ class PaxisAgent:
 
         m1_atr_val = snap_m1.atr if snap_m1 and snap_m1.atr > 0 else 1.0
         atr_buffer = m1_atr_val * 0.35
+        min_rr = getattr(settings, "min_rr_ratio", 2.0)
 
         if decision.action == "BUY":
             entry_price = ask
@@ -985,7 +1186,12 @@ class PaxisAgent:
                 fixed_sl = min(base_sl, ob_bottom - atr_buffer)
             else:
                 fixed_sl = base_sl
-            fixed_tp = ask + tp_dist
+
+            actual_sl_dist = max(entry_price - fixed_sl, 0.10)
+            if decision.tp > entry_price and ((decision.tp - entry_price) / actual_sl_dist) >= min_rr:
+                fixed_tp = decision.tp
+            else:
+                fixed_tp = entry_price + (actual_sl_dist * min_rr)
         else:  # SELL
             entry_price = bid
             base_sl = ask + sl_dist
@@ -996,11 +1202,19 @@ class PaxisAgent:
                 fixed_sl = max(base_sl, ob_top + atr_buffer)
             else:
                 fixed_sl = base_sl
-            fixed_tp = bid - tp_dist
+
+            actual_sl_dist = max(fixed_sl - entry_price, 0.10)
+            if decision.tp > 0 and decision.tp < entry_price and ((entry_price - decision.tp) / actual_sl_dist) >= min_rr:
+                fixed_tp = decision.tp
+            else:
+                fixed_tp = entry_price - (actual_sl_dist * min_rr)
 
         digits = 2 if is_gold else (3 if "JPY" in sym_upper else 5)
         fixed_sl = round(fixed_sl, digits)
         fixed_tp = round(fixed_tp, digits)
+        actual_sl_dist = abs(entry_price - fixed_sl)
+        actual_tp_dist = abs(fixed_tp - entry_price)
+        calc_rr = round(actual_tp_dist / actual_sl_dist, 2) if actual_sl_dist > 0 else min_rr
 
         # ── 7. Institutional Risk Gate (Enforced specifically for Auto-Scalp unless bypassed) ──
         if not settings.disable_risk_gate:
@@ -1018,7 +1232,7 @@ class PaxisAgent:
                 entry=entry_price,
                 sl=fixed_sl,
                 tp=fixed_tp,
-                rr_ratio=tp_dist / sl_dist if sl_dist > 0 else 0.0,
+                rr_ratio=calc_rr,
                 spread_pips=spread,
                 open_positions=open_positions,
                 news_blocked=news_blocked,
@@ -1037,7 +1251,7 @@ class PaxisAgent:
                     entry=entry_price,
                     sl=fixed_sl,
                     tp=fixed_tp,
-                    rr_ratio=tp_dist / sl_dist if sl_dist > 0 else 0.0,
+                    rr_ratio=calc_rr,
                     pattern=decision.pattern,
                     session=session,
                     reasoning=decision.reasoning or decision.trade_thesis,
@@ -1073,7 +1287,7 @@ class PaxisAgent:
                 entry=entry_price,
                 sl=fixed_sl,
                 tp=fixed_tp,
-                rr_ratio=tp_dist / sl_dist if sl_dist > 0 else 0.0,
+                rr_ratio=calc_rr,
                 pattern=decision.pattern,
                 session=session,
                 reasoning=f"[AUTO-SCALP] {decision.reasoning or decision.trade_thesis}",
@@ -1140,6 +1354,10 @@ class PaxisAgent:
         pnl = closed.get("profit", 0.0)
         symbol = closed.get("symbol", "")
         action = closed.get("type", "")
+        entry = closed.get("price_open", 0.0)
+        close_price = closed.get("close_price", closed.get("price_current", 0.0))
+        ticket = closed.get("ticket")
+        volume = closed.get("volume", 0.01)
 
         self._daily_pnl += pnl
         risk_gate.update_daily_pnl(self._daily_pnl)
@@ -1148,9 +1366,10 @@ class PaxisAgent:
             self._daily_wins += 1
         else:
             self._daily_losses += 1
+            # Record directional loss to activate 15m Cooldown Shield
+            risk_gate.record_loss(symbol, action, entry)
 
         # Update recent trades history
-        ticket = closed.get("ticket")
         for t in self._recent_trades:
             if t.get("ticket") == ticket:
                 t["pnl"] = pnl
@@ -1159,7 +1378,7 @@ class PaxisAgent:
         # Log trade close to dashboard
         dashboard_client.log_trade_close(
             ticket=ticket,
-            close_price=closed.get("price_current", 0.0),
+            close_price=close_price,
             pnl=pnl,
             outcome="WIN" if pnl > 0 else "LOSS",
         )
@@ -1169,6 +1388,10 @@ class PaxisAgent:
             action=action,
             pnl=pnl,
             outcome="WIN" if pnl > 0 else "LOSS",
+            ticket=ticket,
+            entry=entry,
+            exit_price=close_price,
+            lot_size=volume,
         )
 
     # ── Control Methods (called by Telegram bot) ──────────────────────────────
@@ -1425,6 +1648,20 @@ class PaxisAgent:
             f"• Active Pairs: <code>{settings.trading_pairs}</code>",
         ])
 
+        return "\n".join(lines)
+
+    def get_upcoming_setups_summary(self) -> str:
+        """Format active upcoming POI setups for Telegram and CLI inquiries."""
+        if not self._last_sent_upcoming_setups:
+            return "No active upcoming POI limit entry setups currently queued."
+
+        lines = []
+        for symbol, setup in self._last_sent_upcoming_setups.items():
+            dir_emoji = "🔴" if "SHORT" in setup.get("direction", "").upper() or "SELL" in setup.get("direction", "").upper() else "🟢"
+            lines.append(
+                f"• <b>{symbol}</b>: {dir_emoji} <b>{setup.get('direction')}</b> @ <code>{setup.get('entry'):.3f}</code> | "
+                f"SL: <code>{setup.get('sl'):.3f}</code> | Strategy: <code>{setup.get('strategy')}</code>"
+            )
         return "\n".join(lines)
 
 

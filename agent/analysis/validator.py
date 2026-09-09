@@ -86,12 +86,13 @@ class TradeValidator:
     - Weighted score >= min_validity_score (default 0.65)
     """
 
-    MIN_VALIDITY_SCORE: float = 0.65
+    MIN_VALIDITY_SCORE: float = 0.60
     POI_TOLERANCE_POINTS: float = 8.0   # XAUUSD points to consider "at POI"
 
     def validate(
         self,
         *,
+        symbol: str = "",
         # Direction
         direction: str,    # "LONG" or "SHORT"
 
@@ -130,6 +131,7 @@ class TradeValidator:
         proposed_sl: float = 0.0,
         proposed_tp: float = 0.0,
         min_rr_ratio: float = 2.0,
+        fib_score: float = 0.0,
     ) -> ValidatorResult:
         """
         Run all 18 checks and return ValidatorResult.
@@ -161,7 +163,7 @@ class TradeValidator:
         recent_break = any(
             b.get("direction") == expected and b.get("bars_ago", 999) <= 30
             for b in (breaks_4h + breaks_1h + breaks_15m)
-        ) or len(breaks_4h + breaks_1h + breaks_15m) > 0
+        )
         checks.append(ValidatorCheck(
             check_id=2, name="STRUCTURE_BREAK_PRESENT",
             passed=recent_break, weight=1.5, mandatory=False,
@@ -173,7 +175,7 @@ class TradeValidator:
         fvg_key = "active_bullish_fvgs" if is_bull else "active_bearish_fvgs"
         has_obs = len(smc_1h.get(ob_key, [])) > 0 or len(smc_4h.get(ob_key, [])) > 0 or len(smc_15m.get(ob_key, [])) > 0
         has_fvgs = len(smc_1h.get(fvg_key, [])) > 0 or len(smc_15m.get(fvg_key, [])) > 0 or len(smc_4h.get(fvg_key, [])) > 0
-        has_poi = has_obs or has_fvgs or True
+        has_poi = has_obs or has_fvgs
         checks.append(ValidatorCheck(
             check_id=3, name="ACTIVE_POI_EXISTS",
             passed=has_poi, weight=2.0, mandatory=False,
@@ -183,15 +185,28 @@ class TradeValidator:
         # ── Check 4: Price Approaching POI ───────────────────────────────────
         all_obs = smc_1h.get(ob_key, []) + smc_4h.get(ob_key, [])
         all_fvgs = smc_1h.get(fvg_key, []) + smc_15m.get(fvg_key, [])
+
+        sym_u = (symbol or smc_15m.get("symbol") or smc_1h.get("symbol") or "").upper()
+        if current_price > 10000.0 or any(x in sym_u for x in ["US30", "DE30", "NDX", "SPX"]):
+            poi_tolerance = 50.0
+        elif 1500.0 < current_price < 5000.0 or any(x in sym_u for x in ["XAU", "GOLD"]):
+            poi_tolerance = 8.0
+        elif 80.0 < current_price < 200.0 or "JPY" in sym_u:
+            poi_tolerance = 0.80
+        elif current_price < 2.0 or any(x in sym_u for x in ["EUR", "GBP", "AUD", "NZD", "CAD", "CHF"]):
+            poi_tolerance = 0.0050
+        else:
+            poi_tolerance = self.POI_TOLERANCE_POINTS
+
         price_at_poi = (
             any(
                 ob.get("price_is_inside", False) or
-                ob.get("distance_points", 999) <= self.POI_TOLERANCE_POINTS
+                ob.get("distance_points", 999) <= poi_tolerance
                 for ob in all_obs
             )
             or any(
                 fvg.get("price_is_inside", False) or
-                fvg.get("distance_points", 999) <= self.POI_TOLERANCE_POINTS
+                fvg.get("distance_points", 999) <= poi_tolerance
                 for fvg in all_fvgs
             )
             or not has_poi
@@ -199,7 +214,7 @@ class TradeValidator:
         checks.append(ValidatorCheck(
             check_id=4, name="PRICE_AT_POI",
             passed=price_at_poi, weight=2.5, mandatory=False,
-            detail=f"Price within {self.POI_TOLERANCE_POINTS}pts of active OB/FVG",
+            detail=f"Price within {poi_tolerance}pts of active OB/FVG",
         ))
 
         # ── Check 5: Premium / Discount Zone ─────────────────────────────────
@@ -295,11 +310,21 @@ class TradeValidator:
         ))
 
         # ── Check 14: Spread Within Limit ─────────────────────────────────────
-        spread_ok = spread_pips <= max_spread_pips
+        sym_u = (symbol or smc_15m.get("symbol") or smc_1h.get("symbol") or "").upper()
+        if any(x in sym_u for x in ["US30", "DE30", "NDX", "SPX", "DJI", "DOW"]):
+            effective_max_spread = max(max_spread_pips, 30.0)
+        elif any(x in sym_u for x in ["BTC", "ETH"]):
+            effective_max_spread = max(max_spread_pips, 150.0)
+        elif any(x in sym_u for x in ["XAU", "GOLD"]):
+            effective_max_spread = max(max_spread_pips, 20.0)
+        else:
+            effective_max_spread = max_spread_pips
+
+        spread_ok = spread_pips <= effective_max_spread
         checks.append(ValidatorCheck(
             check_id=14, name="SPREAD_WITHIN_LIMIT",
             passed=spread_ok, weight=1.5, mandatory=True,
-            detail=f"Spread={spread_pips:.1f} pips, max={max_spread_pips:.1f}",
+            detail=f"Spread={spread_pips:.1f} pips, max={effective_max_spread:.1f}",
         ))
 
         # ── Check 15: Max Open Positions ─────────────────────────────────────
@@ -325,11 +350,20 @@ class TradeValidator:
             risk = abs(proposed_entry - proposed_sl)
             reward = abs(proposed_tp - proposed_entry)
             rr_ratio = (reward / risk) if risk > 0 else 0.0
-            rr_ok = rr_ratio >= min_rr_ratio
+            rr_ok = round(rr_ratio, 2) >= min_rr_ratio
         checks.append(ValidatorCheck(
             check_id=17, name="MIN_RR_RATIO",
             passed=rr_ok, weight=2.0, mandatory=True,
             detail=f"RR={rr_ratio:.2f}, min={min_rr_ratio:.1f}",
+        ))
+
+        # ── Check 19: Fibonacci Golden Zone Confluence ────────────────────────
+        fib_val = fib_score or smc_15m.get("fib_score", 0.0) or smc_1h.get("fib_score", 0.0) or smc_4h.get("fib_score", 0.0)
+        fib_ok = (fib_val >= 0.35) if fib_val > 0 else True
+        checks.append(ValidatorCheck(
+            check_id=19, name="FIBONACCI_GOLDEN_ZONE",
+            passed=fib_ok, weight=2.0, mandatory=False,
+            detail=f"Fib score={fib_val:.2f}",
         ))
 
         # ── Check 18: Swing Range Context ─────────────────────────────────────

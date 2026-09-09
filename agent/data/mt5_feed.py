@@ -55,7 +55,6 @@ class MT5Feed:
     _active_symbols: List[str] = []
     _symbol_map: Dict[str, str] = {}
 
-    # ── Simulated Data States for Linux ───────────────────────────────────────
     _simulated_positions: Dict[int, dict] = {}
     _closed_simulated_records: Dict[int, dict] = {}
     _simulated_balance: float = 10000.0
@@ -64,9 +63,18 @@ class MT5Feed:
     _last_tick_fetch_time: Dict[str, float] = {}
     _last_remote_check_time: float = 0.0
     _remote_fail_count: int = 0
+    _is_backtest: bool = False
 
     def __init__(self):
         self._init_ticket_counter()
+
+    def set_backtest_mode(self, active: bool = True, initial_balance: float = 10000.0) -> None:
+        """Set backtest mode to completely isolate MT5Feed from live remote bridge and network calls."""
+        self._is_backtest = active
+        self._remote_active = False
+        self._connected = True
+        if initial_balance:
+            self._simulated_balance = initial_balance
 
     def _init_ticket_counter(self) -> None:
         """Initialize the simulated ticket counter based on the highest existing ticket in DB."""
@@ -96,7 +104,7 @@ class MT5Feed:
 
     def _fetch_active_symbols(self) -> bool:
         """Fetch the list of active symbols from the remote bridge."""
-        if not settings.mt5_remote_ip:
+        if self._is_backtest or not settings.mt5_remote_ip:
             return False
         try:
             url = f"http://{settings.mt5_remote_ip}:{settings.mt5_remote_port}/symbols"
@@ -160,6 +168,18 @@ class MT5Feed:
             yahoo_sym = "SI=F"
         elif sym in ("USOUSD", "WTI", "CL"):
             yahoo_sym = "CL=F"
+        elif sym in ("US30", "DJI", "DOW", "US30USD"):
+            yahoo_sym = "^DJI"
+        elif sym in ("NAS100", "US100", "NDX", "USTECH"):
+            yahoo_sym = "^IXIC"
+        elif sym in ("US500", "SP500", "SPX"):
+            yahoo_sym = "^GSPC"
+        elif sym in ("GER30", "DE30", "DAX"):
+            yahoo_sym = "^GDAXI"
+        elif sym in ("BTCUSD", "BTC"):
+            yahoo_sym = "BTC-USD"
+        elif sym in ("ETHUSD", "ETH"):
+            yahoo_sym = "ETH-USD"
         elif len(sym) == 6:
             yahoo_sym = f"{sym}=X"
         else:
@@ -205,7 +225,15 @@ class MT5Feed:
             
             # Fill missing values
             df = df.ffill().bfill()
-            df["spread"] = 15.0  # default mock spread
+            if any(x in sym for x in ["XAU", "GOLD"]):
+                mock_spread = 15.0
+            elif any(x in sym for x in ["US30", "DE30", "NDX", "SPX"]):
+                mock_spread = 20.0
+            elif len(sym) == 6 or "USD" in sym:
+                mock_spread = 1.5
+            else:
+                mock_spread = 15.0
+            df["spread"] = mock_spread
             
             # Type casting
             df["open"] = df["open"].astype(float)
@@ -345,6 +373,9 @@ class MT5Feed:
 
     def is_connected(self) -> bool:
         """Check if MT5 terminal is still connected."""
+        if self._is_backtest:
+            return True
+
         if settings.mt5_remote_ip:
             current_time = time.time()
             if not self._remote_active:
@@ -637,6 +668,18 @@ class MT5Feed:
 
     # ── Tick / Spread ─────────────────────────────────────────────────────────
 
+    def _get_symbol_pip_size(self, symbol: str, digits: int = 5) -> float:
+        sym = (symbol or "").upper().replace("/", "").strip()
+        if any(x in sym for x in ["US30", "DE30", "NDX", "SPX", "DJI", "DOW"]):
+            return 1.0
+        if any(x in sym for x in ["BTC", "ETH"]):
+            return 1.0
+        if any(x in sym for x in ["XAU", "GOLD"]):
+            return 0.1
+        if "JPY" in sym or digits == 3:
+            return 0.01
+        return 0.0001
+
     def get_tick(self, symbol: str) -> Optional[TickData]:
         """Get current bid/ask tick for a symbol."""
         if not self.is_connected():
@@ -652,7 +695,7 @@ class MT5Feed:
                     if isinstance(data, dict):
                         bid = float(data.get("bid", 0.0))
                         ask = float(data.get("ask", 0.0))
-                        pip_size = 0.01 if "JPY" in symbol.upper() or "XAU" in symbol.upper() or "GOLD" in symbol.upper() else 0.0001
+                        pip_size = self._get_symbol_pip_size(symbol)
                         spread_pips = float(data.get("spread_pips", round((ask - bid) / pip_size, 1) if bid > 0 else 1.5))
                         return TickData(
                             symbol=symbol,
@@ -670,14 +713,14 @@ class MT5Feed:
             if "." in sym:
                 sym = sym.split(".")[0]
             
-            pip_size = 0.01 if "JPY" in sym or "XAU" in sym or "GOLD" in sym else 0.0001
+            pip_size = self._get_symbol_pip_size(symbol)
             
             current_time = time.time()
             cached_price = self._simulated_prices.get(sym)
             last_fetch = self._last_tick_fetch_time.get(sym, 0)
             
             fetched_new = False
-            if cached_price is None or (current_time - last_fetch > 60.0):
+            if cached_price is None or (current_time - last_fetch > 5.0):
                 # Try fetching latest close price from Yahoo Finance using M1 timeframe
                 try:
                     df_yf = self._get_yfinance_candles(symbol, timeframe="M1", count=1)
@@ -730,7 +773,7 @@ class MT5Feed:
 
             info = mt5.symbol_info(symbol)
             digits = info.digits if info else 5
-            pip_size = 0.01 if digits == 3 else 0.0001
+            pip_size = self._get_symbol_pip_size(symbol, digits=digits)
             spread_pips = round((tick.ask - tick.bid) / pip_size, 1)
 
             return TickData(

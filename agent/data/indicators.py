@@ -22,6 +22,22 @@ except ImportError:
         logger.warning("pandas-ta / pandas-ta-classic not available")
 
 
+import math
+import numpy as np
+
+def _safe_round(val: Any, digits: int = 2, default: float = 0.0) -> float:
+    """Safely round a float, returning default if value is None, NaN, or Inf."""
+    if val is None or pd.isna(val):
+        return default
+    try:
+        f = float(val)
+        if math.isnan(f) or math.isinf(f) or np.isnan(f) or np.isinf(f):
+            return default
+        return round(f, digits)
+    except (ValueError, TypeError):
+        return default
+
+
 @dataclass
 class IndicatorSnapshot:
     """Clean snapshot of all indicator values for a single symbol / timeframe."""
@@ -114,118 +130,120 @@ class IndicatorSnapshot:
             "timeframe": self.timeframe,
             "timestamp": str(self.timestamp),
             "price": {
-                "open": round(self.open_, 5),
-                "high": round(self.high, 5),
-                "low": round(self.low, 5),
-                "close": round(self.close, 5),
+                "open": _safe_round(self.open_, 5),
+                "high": _safe_round(self.high, 5),
+                "low": _safe_round(self.low, 5),
+                "close": _safe_round(self.close, 5),
             },
-            "rsi_14": round(self.rsi, 2),
+            "rsi_14": _safe_round(self.rsi, 2, default=50.0),
             "stochastic_rsi": {
-                "k": round(self.stoch_rsi_k, 2),
-                "d": round(self.stoch_rsi_d, 2),
+                "k": _safe_round(self.stoch_rsi_k, 2, default=50.0),
+                "d": _safe_round(self.stoch_rsi_d, 2, default=50.0),
                 "status": self.stoch_rsi_status,
             },
             "macd": {
-                "line": round(self.macd, 6),
-                "signal": round(self.macd_signal, 6),
-                "histogram": round(self.macd_hist, 6),
+                "line": _safe_round(self.macd, 6),
+                "signal": _safe_round(self.macd_signal, 6),
+                "histogram": _safe_round(self.macd_hist, 6),
                 "cross": self.macd_cross,
             },
             "adx_14": {
-                "adx": round(self.adx, 2),
-                "plus_di": round(self.dmp, 2),
-                "minus_di": round(self.dmn, 2),
+                "adx": _safe_round(self.adx, 2),
+                "plus_di": _safe_round(self.dmp, 2),
+                "minus_di": _safe_round(self.dmn, 2),
                 "strength": self.adx_trend_strength,
             },
             "bollinger_bands": {
-                "upper": round(self.bb_upper, 5),
-                "middle": round(self.bb_middle, 5),
-                "lower": round(self.bb_lower, 5),
+                "upper": _safe_round(self.bb_upper, 5),
+                "middle": _safe_round(self.bb_middle, 5),
+                "lower": _safe_round(self.bb_lower, 5),
                 "position": self.bb_position,
-                "width_pct": round(self.bb_width, 4),
+                "width_pct": _safe_round(self.bb_width, 4),
                 "squeeze": self.bb_squeeze,
             },
             "ema": {
-                "ema5": round(self.ema5, 5),
-                "ema9": round(self.ema9, 5),
-                "ema20": round(self.ema20, 5),
-                "ema21": round(self.ema21, 5),
-                "ema50": round(self.ema50, 5),
-                "ema200": round(self.ema200, 5),
+                "ema5": _safe_round(self.ema5, 5),
+                "ema9": _safe_round(self.ema9, 5),
+                "ema20": _safe_round(self.ema20, 5),
+                "ema21": _safe_round(self.ema21, 5),
+                "ema50": _safe_round(self.ema50, 5),
+                "ema200": _safe_round(self.ema200, 5),
                 "trend": self.ema_trend,
                 "ema5_20_cross": self.ema5_20_cross,
                 "ema9_21_cross": self.ema9_21_cross,
             },
             "pivot_points": {
-                "pivot": round(self.pivot, 5),
-                "r1": round(self.r1, 5),
-                "s1": round(self.s1, 5),
-                "r2": round(self.r2, 5),
-                "s2": round(self.s2, 5),
+                "pivot": _safe_round(self.pivot, 5),
+                "r1": _safe_round(self.r1, 5),
+                "s1": _safe_round(self.s1, 5),
+                "r2": _safe_round(self.r2, 5),
+                "s2": _safe_round(self.s2, 5),
             },
             "smart_money_concepts": {
                 "fvg": {
                     "type": self.smc_fvg_detected,
-                    "top": round(self.smc_fvg_top, 5),
-                    "bottom": round(self.smc_fvg_bottom, 5),
-                    "gap_size": round(self.smc_fvg_gap_size, 5),
+                    "top": _safe_round(self.smc_fvg_top, 5),
+                    "bottom": _safe_round(self.smc_fvg_bottom, 5),
+                    "gap_size": _safe_round(self.smc_fvg_gap_size, 5),
                 },
                 "order_block": {
                     "type": self.smc_order_block,
-                    "top": round(self.smc_ob_top, 5),
-                    "bottom": round(self.smc_ob_bottom, 5),
+                    "top": _safe_round(self.smc_ob_top, 5),
+                    "bottom": _safe_round(self.smc_ob_bottom, 5),
                 },
                 "structure": self.smc_market_structure,
                 "smc_engine_details": self.smc_full_dict,
             },
             "atr_14": {
-                "raw": round(self.atr, 6),
-                "pips": round(self.atr_pips, 1),
+                "raw": _safe_round(self.atr, 6),
+                "pips": _safe_round(self.atr_pips, 1),
             },
-            "realized_vol_20": round(self.realized_vol_20, 6),
+            "realized_vol_20": _safe_round(self.realized_vol_20, 6),
             "rsi_divergence": self.rsi_divergence,
             "volume": {
-                "current": self.volume,
-                "avg_20": round(self.volume_avg, 1),
-                "ratio": round(self.volume_ratio, 2),
+                "current": _safe_round(self.volume, 2),
+                "avg_20": _safe_round(self.volume_avg, 1),
+                "ratio": _safe_round(self.volume_ratio, 2, default=1.0),
             },
         }
         return res
 
     def to_tradingview_dict(self) -> dict:
         """Return clean dict structured for TradingView chart overlays & technical analysis HUD."""
+        rsi_val = _safe_round(self.rsi, 1, default=50.0)
+        digits = 2 if "XAU" in self.symbol else 5
         return {
             "symbol": self.symbol,
             "timeframe": self.timeframe,
             "price": {
-                "close": round(self.close, 2 if "XAU" in self.symbol else 5),
-                "high": round(self.high, 2 if "XAU" in self.symbol else 5),
-                "low": round(self.low, 2 if "XAU" in self.symbol else 5),
+                "close": _safe_round(self.close, digits),
+                "high": _safe_round(self.high, digits),
+                "low": _safe_round(self.low, digits),
             },
             "support_resistance": {
-                "resistance_2": round(self.r2, 2 if "XAU" in self.symbol else 5),
-                "resistance_1": round(self.r1, 2 if "XAU" in self.symbol else 5),
-                "pivot": round(self.pivot, 2 if "XAU" in self.symbol else 5),
-                "support_1": round(self.s1, 2 if "XAU" in self.symbol else 5),
-                "support_2": round(self.s2, 2 if "XAU" in self.symbol else 5),
+                "resistance_2": _safe_round(self.r2, digits),
+                "resistance_1": _safe_round(self.r1, digits),
+                "pivot": _safe_round(self.pivot, digits),
+                "support_1": _safe_round(self.s1, digits),
+                "support_2": _safe_round(self.s2, digits),
             },
             "rsi": {
-                "value": round(self.rsi, 1),
-                "status": "OVERBOUGHT" if self.rsi >= 70 else ("OVERSOLD" if self.rsi <= 30 else "NEUTRAL")
+                "value": rsi_val,
+                "status": "OVERBOUGHT" if rsi_val >= 70 else ("OVERSOLD" if rsi_val <= 30 else "NEUTRAL")
             },
             "ema_trend": {
-                "ema50": round(self.ema50, 2 if "XAU" in self.symbol else 5),
-                "ema200": round(self.ema200, 2 if "XAU" in self.symbol else 5),
+                "ema50": _safe_round(self.ema50, digits),
+                "ema200": _safe_round(self.ema200, digits),
                 "trend": self.ema_trend,
                 "cross": self.ema9_21_cross,
             },
             "smart_money_concepts": {
                 "fvg_type": self.smc_fvg_detected,
-                "fvg_top": round(self.smc_fvg_top, 2 if "XAU" in self.symbol else 5),
-                "fvg_bottom": round(self.smc_fvg_bottom, 2 if "XAU" in self.symbol else 5),
+                "fvg_top": _safe_round(self.smc_fvg_top, digits),
+                "fvg_bottom": _safe_round(self.smc_fvg_bottom, digits),
                 "order_block_type": self.smc_order_block,
-                "ob_top": round(self.smc_ob_top, 2 if "XAU" in self.symbol else 5),
-                "ob_bottom": round(self.smc_ob_bottom, 2 if "XAU" in self.symbol else 5),
+                "ob_top": _safe_round(self.smc_ob_top, digits),
+                "ob_bottom": _safe_round(self.smc_ob_bottom, digits),
                 "market_structure": self.smc_market_structure,
             }
         }

@@ -89,6 +89,9 @@ class BacktestMetrics:
 
     # Equity curve
     equity_curve: List[float] = field(default_factory=list)
+    initial_balance: float = 50.0
+    final_equity: float = 50.0
+    roi_pct: float = 0.0
 
     def summary(self) -> str:
         """Human-readable summary."""
@@ -96,6 +99,9 @@ class BacktestMetrics:
             "=" * 60,
             "  PAXIS BACKTEST PERFORMANCE REPORT",
             "=" * 60,
+            f"  Initial Balance:  ${self.initial_balance:.2f}",
+            f"  Final Equity:     ${self.final_equity:.2f}",
+            f"  Net ROI:          {self.roi_pct:+.2f}%",
             f"  Total Trades:     {self.total_trades}",
             f"  Winners:          {self.winners} ({self.win_rate:.1f}%)",
             f"  Losers:           {self.losers} ({self.loss_rate:.1f}%)",
@@ -130,7 +136,7 @@ class BacktestMetrics:
 
 def calculate_metrics(
     trades: List[TradeRecord],
-    initial_balance: float = 1000.0,
+    initial_balance: float = 50.0,
     risk_free_rate: float = 0.0,
 ) -> BacktestMetrics:
     """
@@ -145,9 +151,12 @@ def calculate_metrics(
         BacktestMetrics with all performance statistics.
     """
     m = BacktestMetrics()
+    m.initial_balance = initial_balance
     m.total_trades = len(trades)
 
     if not trades:
+        m.final_equity = initial_balance
+        m.roi_pct = 0.0
         return m
 
     # ── Basic classification ──────────────────────────────────────────────
@@ -173,6 +182,8 @@ def calculate_metrics(
 
     # ── PnL stats ──────────────────────────────────────────────────────────
     m.total_pnl = sum(pnls)
+    m.final_equity = initial_balance + m.total_pnl
+    m.roi_pct = (m.total_pnl / initial_balance * 100.0) if initial_balance > 0 else 0.0
     m.gross_profit = sum(wins) if wins else 0.0
     m.gross_loss = sum(abs(l) for l in losses) if losses else 0.0
     m.avg_win = np.mean(wins) if wins else 0.0

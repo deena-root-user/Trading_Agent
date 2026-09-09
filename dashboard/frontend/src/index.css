@@ -645,7 +645,7 @@ body::before {
 /* Dashboard layout grid */
 .dashboard-layout {
   display: grid;
-  grid-template-columns: 1.6fr 1fr;
+  grid-template-columns: 1.65fr 1fr;
   gap: 24px;
   align-items: start;
 }
@@ -654,5 +654,69 @@ body::before {
     grid-template-columns: 1fr;
     gap: 20px;
   }
+}
+
+/* ── Pro-Trader Telemetry Setup Box ── */
+.poi-setup-box {
+  background: rgba(10, 16, 28, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  margin: 12px 0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(99, 102, 241, 0.03);
+}
+
+.poi-level-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+}
+
+.poi-level-row:last-child {
+  border-bottom: none;
+}
+
+.glow-pill-green {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--buy);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.glow-pill-red {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--sell);
+  padding: 2px 8px;
+  border-radius: 74px;
+  font-weight: 700;
+}
+
+.glow-pill-accent {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: var(--accent);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+/* Dynamic Live Market Ticker */
+.ticker-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 8px 32px;
+  background: rgba(7, 10, 19, 0.9);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
 }
 

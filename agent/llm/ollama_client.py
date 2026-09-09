@@ -76,17 +76,17 @@ class OllamaClient:
         messages: List[Dict[str, Any]],
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
+        force_provider: Optional[str] = None,
     ) -> Optional[str]:
         """
-        Send a chat request to Ollama. Returns raw text JSON response string.
-        Automatically falls back to text-only indicators if vision processing times out.
+        Send a chat request to Ollama or Remote API. Returns raw text JSON response string.
         Thread-safe: acquires self._lock to prevent concurrent GPU/stdout collisions.
         """
         with self._lock:
-            # Check if remote API is requested (use_local_ollama=False or llm_provider="api")
+            target_provider = (force_provider or getattr(settings, "llm_provider", "ollama")).lower()
             use_local = getattr(settings, "use_local_ollama", True)
-            provider = str(getattr(settings, "llm_provider", "ollama")).lower()
-            if not use_local or provider == "api":
+
+            if target_provider == "api" or (not use_local and force_provider != "ollama"):
                 remote_res = self._chat_remote_api(messages, temperature, top_p)
                 if remote_res is not None:
                     return remote_res
@@ -128,7 +128,7 @@ class OllamaClient:
                 "format": "json",
             }
 
-            request_timeout = float(self.vision_timeout) if has_images else float(self.timeout)
+            request_timeout = float(self.vision_timeout) if has_images else min(float(self.timeout), 25.0)
             start = time.time()
             chunks = []
             token_count = 0

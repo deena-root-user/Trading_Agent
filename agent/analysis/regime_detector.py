@@ -29,27 +29,27 @@ from loguru import logger
 
 REGIME_STRATEGY_MAP: Dict[str, Dict[str, List[str]]] = {
     "TRENDING_STRONG": {
-        "allowed": ["BOS_CONTINUATION", "FVG_PULLBACK", "OB_REACTION", "DISPLACEMENT_ENTRY"],
-        "forbidden": ["MEAN_REVERSION", "RANGE_REVERSAL", "EQUILIBRIUM_TRADE"],
+        "allowed": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY", "HTF_LTF_SMC", "SMC_INDUCEMENT_SWEEP", "SWEEP_REVERSAL"],
+        "forbidden": ["CHOCH_REVERSAL", "MEAN_REVERSION", "RANGE_REVERSAL", "EQUILIBRIUM_TRADE", "OB_REACTION"],
     },
     "TRENDING_MODERATE": {
-        "allowed": ["FVG_PULLBACK", "OB_REACTION", "HTF_LTF_SMC", "BOS_CONTINUATION"],
-        "forbidden": ["RANGE_REVERSAL"],
+        "allowed": ["BOS_CONTINUATION", "HTF_LTF_SMC", "SMC_INDUCEMENT_SWEEP", "SWEEP_REVERSAL", "DISPLACEMENT_ENTRY"],
+        "forbidden": ["CHOCH_REVERSAL", "RANGE_REVERSAL", "OB_REACTION"],
     },
     "PULLBACK_RETRACEMENT": {
-        "allowed": ["FVG_PULLBACK", "FVG_RETRACEMENT", "HTF_LTF_SMC"],
-        "forbidden": ["OB_REACTION", "SWEEP_REVERSAL"],
+        "allowed": ["SMC_INDUCEMENT_SWEEP", "HTF_LTF_SMC", "SWEEP_REVERSAL"],
+        "forbidden": ["CHOCH_REVERSAL", "FVG_PULLBACK", "FVG_RETRACEMENT", "OB_REACTION"],
     },
     "RANGING": {
         "allowed": ["RANGE_REVERSAL", "EQUILIBRIUM_TRADE"],
         "forbidden": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY"],
     },
     "COMPRESSING": {
-        "allowed": ["RANGE_REVERSAL", "OB_REACTION", "FVG_PULLBACK"],
-        "forbidden": [],
+        "allowed": ["SWEEP_REVERSAL", "RANGE_REVERSAL"],
+        "forbidden": ["OB_REACTION"],
     },
     "VOLATILE_EXPANSION": {
-        "allowed": ["DISPLACEMENT_ENTRY"],
+        "allowed": ["DISPLACEMENT_ENTRY", "SWEEP_REVERSAL"],
         "forbidden": [],
     },
     "UNCERTAIN": {
@@ -246,10 +246,12 @@ class MarketRegimeDetector:
 
         # Priority 4: Moderate Trend
         elif adx_trending_4h and structure_alignment_score >= 0.50:
-            # Check if pullback
+            # Check if pullback (requires structure alignment >= 0.67)
             in_retracement_zone = (
-                (trend_4h == "BULLISH" and premium_discount_1h in ("DISCOUNT", "EQUILIBRIUM")) or
-                (trend_4h == "BEARISH" and premium_discount_1h in ("PREMIUM", "EQUILIBRIUM"))
+                structure_alignment_score >= 0.67 and (
+                    (trend_4h == "BULLISH" and premium_discount_1h in ("DISCOUNT", "EQUILIBRIUM")) or
+                    (trend_4h == "BEARISH" and premium_discount_1h in ("PREMIUM", "EQUILIBRIUM"))
+                )
             )
             if in_retracement_zone:
                 primary = "PULLBACK_RETRACEMENT"

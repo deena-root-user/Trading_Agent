@@ -1,53 +1,62 @@
+import { DollarSign, Award, Activity, Wallet } from 'lucide-react';
+
 export default function PnlSummary({ pnl, status }) {
   const stats = [
     {
-      label: 'Today P&L',
+      label: "Today's Net P&L",
       value: pnl ? `${pnl.today_pnl >= 0 ? '+' : ''}$${pnl.today_pnl?.toFixed(2)}` : '—',
       color: !pnl ? 'var(--text)' : pnl.today_pnl >= 0 ? 'var(--buy)' : 'var(--sell)',
+      icon: <DollarSign size={18} color={pnl && pnl.today_pnl >= 0 ? 'var(--buy)' : 'var(--sell)'} />,
       sub: pnl ? (
         <div style={{ display: 'flex', gap: '6px' }}>
-          <span className="stat-chip stat-chip-green">{pnl.today_wins} W</span>
-          <span className="stat-chip stat-chip-red">{pnl.today_losses} L</span>
+          <span className="stat-chip stat-chip-green">{pnl.today_wins} WIN</span>
+          <span className="stat-chip stat-chip-red">{pnl.today_losses} LOSS</span>
         </div>
       ) : null,
     },
     {
-      label: 'Win Rate',
+      label: 'Win Rate Efficiency',
       value: pnl ? `${pnl.win_rate?.toFixed(1)}%` : '—',
       color: !pnl ? 'var(--text)' : pnl.win_rate >= 55 ? 'var(--buy)' : pnl.win_rate >= 40 ? 'var(--warn)' : 'var(--sell)',
+      icon: <Award size={18} color="var(--accent)" />,
       bar: pnl?.win_rate,
       barColor: pnl?.win_rate >= 55 ? 'var(--buy)' : pnl?.win_rate >= 40 ? 'var(--warn)' : 'var(--sell)',
       sub: pnl ? (
-        <span className="stat-chip stat-chip-accent">{pnl.total_trades} TRADES</span>
+        <span className="stat-chip stat-chip-accent">{pnl.total_trades} TOTAL TRADES</span>
       ) : null,
     },
     {
-      label: 'Account Balance',
+      label: 'MT5 Terminal Balance',
       value: pnl?.balance != null ? `$${pnl.balance.toFixed(2)}` : '—',
       color: 'var(--text)',
-      sub: <span className="stat-chip">MT5 TERMINAL</span>,
+      icon: <Wallet size={18} color="var(--purple)" />,
+      sub: <span className="stat-chip">MT5 BRIDGE LIVE</span>,
     },
     {
-      label: 'Equity State',
+      label: 'Current Equity State',
       value: pnl?.equity != null ? `$${pnl.equity.toFixed(2)}` : '—',
       color: !pnl?.equity || !pnl?.balance ? 'var(--text)'
         : pnl.equity >= pnl.balance ? 'var(--buy)' : 'var(--sell)',
+      icon: <Activity size={18} color="var(--buy)" />,
       sub: pnl?.equity != null && pnl?.balance ? (
         <span className={`stat-chip ${pnl.equity >= pnl.balance ? 'stat-chip-green' : 'stat-chip-red'}`}>
-          {pnl.equity >= pnl.balance ? '+' : ''}${(pnl.equity - pnl.balance).toFixed(2)} FLT
+          {pnl.equity >= pnl.balance ? '+' : ''}${(pnl.equity - pnl.balance).toFixed(2)} FLOATING
         </span>
       ) : null,
     },
-  ]
+  ];
 
   return (
     <div className="grid-2">
       {stats.map((stat, i) => (
         <div key={i} className="card fade-in" style={{ animationDelay: `${i * 0.05}s` }}>
-          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', minHeight: '120px', padding: '20px' }}>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between', minHeight: '130px', padding: '20px' }}>
             <div className="stat-block">
-              <div className="stat-label">{stat.label}</div>
-              <div className="stat-value" style={{ color: stat.color, fontSize: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div className="stat-label">{stat.label}</div>
+                {stat.icon}
+              </div>
+              <div className="stat-value" style={{ color: stat.color, fontSize: '22px', marginTop: '6px' }}>
                 {stat.value}
               </div>
             </div>
@@ -71,5 +80,5 @@ export default function PnlSummary({ pnl, status }) {
         </div>
       ))}
     </div>
-  )
+  );
 }

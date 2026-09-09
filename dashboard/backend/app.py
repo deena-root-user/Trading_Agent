@@ -259,40 +259,8 @@ async def get_trades(
 
 @app.get("/api/trades/open")
 async def get_open_trades(db: AsyncSession = Depends(get_db)):
-    """Live open positions from MT5 + DB combined."""
-    is_simulated = settings.dry_run or (not mt5_feed._remote_active and not MT5_AVAILABLE)
-    if is_simulated:
-        result = await db.execute(select(Trade).where(Trade.status == "OPEN"))
-        db_trades = result.scalars().all()
-        positions = []
-        for trade in db_trades:
-            tick = mt5_feed.get_tick(trade.symbol)
-            price_current = trade.entry_price
-            profit = 0.0
-            if tick:
-                price_current = tick.ask if trade.action == "SELL" else tick.bid
-                contract_size = 100.0 if "XAU" in trade.symbol.upper() or "GOLD" in trade.symbol.upper() else 100000.0
-                if trade.action == "BUY":
-                    profit = round((price_current - trade.entry_price) * contract_size * trade.lot_size, 2)
-                else:
-                    profit = round((trade.entry_price - price_current) * contract_size * trade.lot_size, 2)
-            
-            positions.append({
-                "ticket": trade.ticket,
-                "symbol": trade.symbol,
-                "type": trade.action,
-                "volume": trade.lot_size,
-                "price_open": trade.entry_price,
-                "price_current": price_current,
-                "sl": trade.sl,
-                "tp": trade.tp,
-                "profit": profit,
-                "time_open": trade.open_time.isoformat() if trade.open_time else None
-            })
-        return {"positions": positions, "count": len(positions)}
-
+    """Live open positions from MT5 feed/bridge."""
     live = mt5_feed.get_open_positions()
-    # Normalize live timestamps to ISO strings for frontend JSON serialization
     positions = []
     for pos in live:
         time_val = pos.get("time_open")
@@ -533,6 +501,29 @@ async def enable_risk_gate(db: AsyncSession = Depends(get_db)):
     await ws_manager.broadcast_agent_status({"disable_risk_gate": False})
     telegram_bot.send_error("🛡️ RISK GATE BLOCKER ENABLED (SAFETY RULES ENFORCED)")
     return {"success": True, "message": "Risk gate blocker enabled"}
+
+
+@app.get("/api/evolution/stats")
+async def get_evolution_stats():
+    """Return self-evolution engine metrics and hourly session win rates."""
+    try:
+        from agent.evolution.self_evolution import self_evolution_engine
+        metrics = self_evolution_engine.get_metrics()
+        summary_txt = self_evolution_engine.get_evolution_prompt_summary()
+        return {
+            "total_trades": metrics.total_trades,
+            "wins": metrics.wins,
+            "losses": metrics.losses,
+            "breakevens": metrics.breakevens,
+            "decided_win_rate": round(metrics.decided_win_rate * 100, 1),
+            "focus_mode": metrics.focus_mode,
+            "consecutive_losses": metrics.consecutive_losses,
+            "focus_min_confidence": metrics.focus_min_confidence,
+            "hourly_win_rates": metrics.hourly_win_rates,
+            "summary_text": summary_txt,
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 @app.post("/api/control/kill")

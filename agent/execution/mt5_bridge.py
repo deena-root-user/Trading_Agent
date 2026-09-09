@@ -78,16 +78,23 @@ class MT5Bridge:
         """
         lot = lot_size or settings.lot_size
         sym = symbol.upper().replace("/", "")
+        act_clean = action.upper().strip()
+        if act_clean in ("LONG", "BUY"):
+            trade_action = "BUY"
+        elif act_clean in ("SHORT", "SELL"):
+            trade_action = "SELL"
+        else:
+            trade_action = act_clean
 
         if settings.dry_run:
             logger.info(
-                f"[DRY RUN] {action} {sym} | lot={lot} | sl={sl} | tp={tp}"
+                f"[DRY RUN] {trade_action} {sym} | lot={lot} | sl={sl} | tp={tp}"
             )
             return OrderResult(
                 success=True,
                 ticket=99999999,
                 symbol=sym,
-                action=action,
+                action=trade_action,
                 volume=lot,
                 price=0.0,
                 sl=sl,
@@ -110,7 +117,7 @@ class MT5Bridge:
                     "volume": float(lot),
                     "sl": 0.0,
                     "tp": 0.0,
-                    "type": action.upper(),  # Must be "BUY" or "SELL" for OrderRequest
+                    "type": trade_action,  # Must be "BUY" or "SELL" for OrderRequest
                     "comment": comment
                 }
                 response = requests.post(url, json=payload, timeout=5)
@@ -141,7 +148,40 @@ class MT5Bridge:
                             if mod_resp.status_code in (200, 201):
                                 logger.info(f"✅ REMOTE POSITION STOPS APPLIED | ticket={ticket} | sl={sl} | tp={tp}")
                             else:
-                                logger.error(f"❌ Failed to apply stops to remote position {ticket}: {mod_resp.text}")
+                                err_text = mod_resp.text
+                                logger.warning(f"⚠️ Remote position {ticket} stops rejected on initial attempt: {err_text}")
+                                # Safe retry with broker minimum stop distance for error 10016 (Invalid stops)
+                                if "10016" in err_text or "invalid stops" in err_text.lower():
+                                    try:
+                                        tick_now = mt5_feed.get_tick(sym)
+                                        curr_px = (tick_now.bid if trade_action == "SELL" else tick_now.ask) if tick_now else price
+                                        min_dist = 1.50 if "XAU" in sym.upper() or "GOLD" in sym.upper() else 0.0015
+                                        if trade_action == "SELL":
+                                            safe_sl = max(sl, curr_px + min_dist)
+                                            safe_tp = min(tp, curr_px - min_dist) if tp > 0 else 0.0
+                                        else:
+                                            safe_sl = min(sl, curr_px - min_dist)
+                                            safe_tp = max(tp, curr_px + min_dist) if tp > 0 else 0.0
+
+                                        retry_payload = {
+                                            "ticket": int(ticket),
+                                            "symbol": resolved_sym,
+                                            "sl": float(safe_sl),
+                                            "tp": float(safe_tp),
+                                            "update_sl": True,
+                                            "update_tp": True
+                                        }
+                                        retry_resp = requests.post(modify_url, json=retry_payload, timeout=5)
+                                        if retry_resp.status_code in (200, 201):
+                                            logger.info(f"✅ REMOTE POSITION STOPS APPLIED (SAFE RETRY) | ticket={ticket} | safe_sl={safe_sl:.5f} | safe_tp={safe_tp:.5f}")
+                                            sl = safe_sl
+                                            tp = safe_tp
+                                        else:
+                                            logger.error(f"❌ Safe retry failed for position {ticket}: {retry_resp.text}")
+                                    except Exception as retry_exc:
+                                        logger.error(f"❌ Exception on safe retry for position {ticket}: {retry_exc}")
+                                else:
+                                    logger.error(f"❌ Failed to apply stops to remote position {ticket}: {err_text}")
                         except Exception as mod_exc:
                             logger.error(f"❌ Exception applying stops to remote position {ticket}: {mod_exc}")
                             

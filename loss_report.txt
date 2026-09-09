@@ -1,0 +1,91 @@
+======================================================================
+  PAXIS BACKTEST LOSS ANALYSIS REPORT
+======================================================================
+
+📊 STRATEGY PERFORMANCE BREAKDOWN
+              Trades  ...  AvgPnL
+strategy              ...        
+FVG_PULLBACK     125  ...  $+4.31
+OB_REACTION       74  ...  $+2.54
+
+[2 rows x 4 columns]
+
+📊 MARKET REGIME BREAKDOWN
+                      Trades  ...  AvgPnL
+regime                        ...        
+PULLBACK_RETRACEMENT      56  ...  $+4.95
+TRENDING_MODERATE        143  ...  $+3.14
+
+[2 rows x 4 columns]
+
+📉 LOSING TRADES SUMMARY
+  Total Losing Trades:  73 / 199 (36.7%)
+  Total USD Lost:        $-581.70
+  Average Loss per Trade:$-7.97
+  Max Single Loss:       $-28.21
+
+📊 LOSSES BY CONFLUENCE SCORE
+           LossCount  ... AvgLoss
+conf_bin              ...        
+<0.50              0  ...    $nan
+0.50-0.60          0  ...    $nan
+0.60-0.70         67  ...  $-8.05
+0.70-0.80          6  ...  $-7.05
+>0.80              0  ...    $nan
+
+[5 rows x 3 columns]
+
+📊 LOSSES BY HOLDING DURATION (1M BARS)
+                 LossCount  ...  AvgLoss
+hold_bin                    ...         
+1-5m (Quick SL)          4  ...  $-12.24
+6-15m                    6  ...  $-13.21
+16-30m                  16  ...  $-14.07
+31-35m (Stall)          41  ...   $-4.33
+>35m                     5  ...   $-6.78
+
+[5 rows x 3 columns]
+
+📊 WIN RATE & PNL BY TRADING HOUR (UTC)
+      Trades WinRate  TotalPnL
+hour                          
+1         14   35.7%   $-37.81
+2          8  100.0%   $+40.68
+3          7   71.4%   $+40.59
+4         12   58.3%   $+89.51
+5          8   62.5%   $+36.87
+6          6   83.3%   $+28.27
+7          7   85.7%   $+39.05
+8          8   62.5%   $+46.23
+9          4  100.0%   $+19.68
+10         8   75.0%  $+172.97
+11         9   44.4%   $+22.30
+12         8   50.0%    $+8.98
+13         6   66.7%    $-1.36
+14         5   80.0%   $+19.59
+15        12   58.3%    $+4.98
+16        10   60.0%   $+89.85
+17        14   57.1%   $-52.21
+18        12   66.7%  $+130.83
+19        12   75.0%   $+37.19
+20         8   62.5%    $-4.56
+21         9   66.7%   $+35.57
+22         5   40.0%   $-42.85
+23         7   42.9%    $+2.15
+
+🚨 TOP 15 WORST LOSSES RECORD
+Time: 2026-06-11 22:34:00 | SHORT | Entry: 4183.93 | SL: 4212.14 | Exit: 4212.14 | PnL: $-28.21 (-1.00R) | Strat: OB_REACTION | Conf: 0.61 | Hold: 22m
+Time: 2026-06-11 20:41:00 | SHORT | Entry: 4133.24 | SL: 4159.39 | Exit: 4159.39 | PnL: $-26.15 (-1.00R) | Strat: OB_REACTION | Conf: 0.61 | Hold: 11m
+Time: 2026-05-28 17:12:00 | SHORT | Entry: 4431.27 | SL: 4450.21 | Exit: 4450.21 | PnL: $-18.94 (-1.00R) | Strat: FVG_PULLBACK | Conf: 0.70 | Hold: 22m
+Time: 2026-06-12 01:57:00 | SHORT | Entry: 4224.92 | SL: 4242.25 | Exit: 4242.25 | PnL: $-17.32 (-1.00R) | Strat: OB_REACTION | Conf: 0.64 | Hold: 17m
+Time: 2026-06-15 01:01:00 | SHORT | Entry: 4245.69 | SL: 4262.84 | Exit: 4262.84 | PnL: $-17.15 (-1.00R) | Strat: OB_REACTION | Conf: 0.64 | Hold: 1321m
+Time: 2026-06-11 22:12:00 | SHORT | Entry: 4166.33 | SL: 4182.69 | Exit: 4182.69 | PnL: $-16.36 (-1.00R) | Strat: OB_REACTION | Conf: 0.69 | Hold: 19m
+Time: 2026-07-02 04:00:00 | SHORT | Entry: 4044.44 | SL: 4059.04 | Exit: 4059.04 | PnL: $-14.60 (-1.00R) | Strat: OB_REACTION | Conf: 0.64 | Hold: 30m
+Time: 2026-06-15 01:02:00 | SHORT | Entry: 4268.24 | SL: 4282.67 | Exit: 4282.67 | PnL: $-14.43 (-1.00R) | Strat: OB_REACTION | Conf: 0.60 | Hold: 1m
+Time: 2026-05-28 19:18:00 | SHORT | Entry: 4480.74 | SL: 4494.00 | Exit: 4494.00 | PnL: $-13.26 (-1.00R) | Strat: FVG_PULLBACK | Conf: 0.69 | Hold: 22m
+Time: 2026-06-16 15:50:00 | SHORT | Entry: 4337.75 | SL: 4350.96 | Exit: 4350.96 | PnL: $-13.21 (-1.00R) | Strat: FVG_PULLBACK | Conf: 0.65 | Hold: 30m
+Time: 2026-06-26 16:57:00 | SHORT | Entry: 4057.60 | SL: 4070.66 | Exit: 4070.66 | PnL: $-13.06 (-1.00R) | Strat: OB_REACTION | Conf: 0.75 | Hold: 15m
+Time: 2026-05-29 17:52:00 | SHORT | Entry: 4548.06 | SL: 4561.04 | Exit: 4561.04 | PnL: $-12.98 (-1.00R) | Strat: FVG_PULLBACK | Conf: 0.61 | Hold: 1m
+Time: 2026-06-19 11:21:00 | SHORT | Entry: 4158.66 | SL: 4171.26 | Exit: 4171.26 | PnL: $-12.60 (-1.00R) | Strat: OB_REACTION | Conf: 0.67 | Hold: 21m
+Time: 2026-06-22 08:29:00 | SHORT | Entry: 4181.56 | SL: 4193.94 | Exit: 4193.94 | PnL: $-12.38 (-1.00R) | Strat: OB_REACTION | Conf: 0.66 | Hold: 29m
+Time: 2026-06-15 11:04:00 | SHORT | Entry: 4315.70 | SL: 4327.93 | Exit: 4327.93 | PnL: $-12.23 (-1.00R) | Strat: FVG_PULLBACK | Conf: 0.65 | Hold: 34m
