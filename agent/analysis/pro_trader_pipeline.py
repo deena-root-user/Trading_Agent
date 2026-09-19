@@ -101,6 +101,16 @@ class ProTraderPipeline:
         self._ollama_client = None
         self._fib_engine = None
 
+        # HTF staleness cache — skip full re-evaluation when HTF data is unchanged
+        # BUG-1 FIX: Added TTL — cache expires after htf_cache_expiry_minutes
+        self._last_htf_fingerprint: dict[str, str | None] = {}
+        self._last_hold_cache: dict[str, ProTraderDecision] = {}
+        self._last_htf_eval_time: dict[str, float] = {}  # symbol → epoch seconds of last full eval
+
+        # Repeated block tracking — detect when the same block repeats
+        self._consecutive_blocks: dict[str, list[str]] = {}  # symbol → list of last N block reasons
+        self._block_backoff_cycles: dict[str, int] = {}  # symbol → consecutive identical blocks count
+
     def _load_components(self):
         """Lazy-load all analysis components."""
         if self._regime_detector is None:
@@ -142,6 +152,7 @@ class ProTraderPipeline:
         news_reason: str = "",
         news_events: Optional[list] = None,
         daily_pnl_usd: float = 0.0,
+        is_kill_zone: bool = False,  # BUG-2 FIX: passed in from main loop
     ) -> ProTraderDecision:
         """
         Execute the full Pro Trader pipeline for one symbol.
@@ -156,6 +167,46 @@ class ProTraderPipeline:
         smc_1h = smc_1h or {}
         smc_15m = smc_15m or {}
         smc_1m = smc_1m or {}
+
+        # ── BUG-1 FIX: HTF staleness cache with TTL + kill zone bypass ────────
+        # Old: identical fingerprint → cached HOLD forever (no expiry)
+        # New: cache expires after htf_cache_expiry_minutes; kill zones bypass entirely
+        htf_fingerprint = (
+            f"{smc_4h.get('trend')}|{smc_1h.get('trend')}|{smc_15m.get('trend')}|"
+            f"{smc_4h.get('premium_discount')}|{smc_1h.get('premium_discount')}|"
+            f"{smc_4h.get('last_close')}|{smc_1h.get('last_close')}|{smc_15m.get('last_close')}"
+        )
+        import time as _time
+        now_epoch = _time.time()
+        cache_ttl_seconds = getattr(settings, 'htf_cache_expiry_minutes', 15) * 60
+        last_eval = self._last_htf_eval_time.get(symbol, 0.0)
+        cache_age = now_epoch - last_eval
+        cache_expired = cache_age >= cache_ttl_seconds
+
+        prev_fp = self._last_htf_fingerprint.get(symbol)
+        cached_hold = self._last_hold_cache.get(symbol)
+
+        if (
+            prev_fp == htf_fingerprint
+            and cached_hold is not None
+            and not open_positions
+            and not cache_expired    # BUG-1 FIX: respect TTL
+            and not is_kill_zone    # BUG-1 FIX: always re-evaluate during kill zones
+        ):
+            logger.debug(
+                f"[{symbol}] HTF cache HIT (age={cache_age:.0f}s / ttl={cache_ttl_seconds:.0f}s) — "
+                f"returning cached HOLD (blocked at {cached_hold.pipeline_stage_blocked})"
+            )
+            return cached_hold
+
+        # Cache miss or expired — do full re-evaluation
+        if cache_expired:
+            logger.info(f"[{symbol}] HTF cache EXPIRED ({cache_age:.0f}s) — forcing full re-evaluation")
+        elif is_kill_zone:
+            logger.info(f"[{symbol}] Kill zone active — bypassing HTF cache for fresh evaluation")
+
+        self._last_htf_fingerprint[symbol] = htf_fingerprint
+        self._last_htf_eval_time[symbol] = now_epoch
 
         # Extract key values from IndicatorSnapshots
         adx_4h = getattr(indicators_4h, "adx", 0.0) or 0.0
@@ -228,15 +279,53 @@ class ProTraderPipeline:
 
         if regime_result.is_no_trade_regime:
             logger.info(f"[{symbol}] ⏸ Regime Engine: HOLD — Regime={regime_result.primary}: {regime_result.reasoning}")
-            return ProTraderDecision(
+            hold = ProTraderDecision(
                 action="HOLD", confidence=0.0, is_actionable=False,
                 regime=regime_result.primary, signal_grade="NO_TRADE",
                 pipeline_stage_blocked="REGIME_DETECTOR",
                 reasoning=f"Regime={regime_result.primary}: {regime_result.reasoning}",
                 pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
             )
+            self._last_hold_cache[symbol] = hold
+            return hold
 
         regime_dict = regime_result.to_dict()
+
+        # ─────────────────────────────────────────────────────────────────────
+        # STAGE 1.5: Breakout State Update
+        # ─────────────────────────────────────────────────────────────────────
+        try:
+            from agent.analysis.breakout_retest_engine import breakout_retest_engine
+            atr_val = getattr(indicators_15m, "atr", 0.0) or getattr(indicators_1h, "atr", 1.0) or 1.0
+            last_close_15m = smc_15m.get("last_close", current_price)
+            high_15m = smc_15m.get("last_high", last_close_15m + atr_val * 0.5)
+            low_15m = smc_15m.get("last_low", last_close_15m - atr_val * 0.5)
+            open_15m = smc_15m.get("last_open", last_close_15m)
+
+            m1_breaks = smc_1m.get("recent_breaks", []) if smc_1m else []
+            m1_bos_dir = next((b["direction"] for b in reversed(m1_breaks) if b.get("type") == "BOS"), None)
+            m1_mss_dir = next((b["direction"] for b in reversed(m1_breaks) if b.get("type") in ("CHOCH", "MSS")), None)
+
+            breakout_retest_engine.update(
+                symbol=symbol,
+                current_price=current_price,
+                atr=atr_val,
+                current_bar=smc_15m.get("bar_count", 100),
+                candle_open=open_15m,
+                candle_high=high_15m,
+                candle_low=low_15m,
+                candle_close=last_close_15m,
+                smc_15m=smc_15m,
+                smc_1h=smc_1h,
+                smc_4h=smc_4h,
+                smc_1m=smc_1m,
+                session=session_dict,
+                m1_bos_direction=m1_bos_dir,
+                m1_mss_direction=m1_mss_dir,
+                htf_trend_aligned=(trend_4h == trend_1h and trend_4h in ("BULLISH", "BEARISH")),
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to update breakout retest engine for {symbol}: {exc}")
 
         # ─────────────────────────────────────────────────────────────────────
         # STAGE 2: Strategy Selection
@@ -258,24 +347,34 @@ class ProTraderPipeline:
 
         if strategy_result.no_strategy_found:
             logger.info(f"[{symbol}] ⏸ Strategy Engine: HOLD — {strategy_result.no_strategy_reason}")
-            return ProTraderDecision(
+            hold = ProTraderDecision(
                 action="HOLD", confidence=0.0, is_actionable=False,
                 regime=regime_result.primary, signal_grade="NO_TRADE",
                 pipeline_stage_blocked="STRATEGY_ENGINE",
                 reasoning=strategy_result.no_strategy_reason,
                 pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
             )
+            self._last_hold_cache[symbol] = hold
+            return hold
 
         direction = strategy_result.strategy_direction
+        # ── BUG-01 FIX: Normalize LONG→BUY, SHORT→SELL for risk gate compatibility ──
+        # The strategy engine outputs "LONG"/"SHORT" but the risk gate checks
+        # `action in ("BUY", "SELL")`. Without normalization, ALL risk checks
+        # (RR ratio, SL/TP sanity, capital protection, trend alignment) are skipped.
+        _direction_to_action = {"LONG": "BUY", "SHORT": "SELL"}
+        trade_action = _direction_to_action.get(direction, direction)
         if direction == "NONE":
             logger.info(f"[{symbol}] ⏸ Strategy Engine: HOLD — No directional bias")
-            return ProTraderDecision(
+            hold = ProTraderDecision(
                 action="HOLD", confidence=0.0, is_actionable=False,
                 regime=regime_result.primary, signal_grade="NO_TRADE",
                 pipeline_stage_blocked="STRATEGY_ENGINE",
                 reasoning="No directional bias from strategy engine",
                 pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
             )
+            self._last_hold_cache[symbol] = hold
+            return hold
 
         logger.info(f"[{symbol}] Strategy: {strategy_result.active_strategy} | "
                     f"dir={direction} | score={strategy_result.strategy_validity_score:.2f}")
@@ -324,7 +423,7 @@ class ProTraderPipeline:
             adx_4h=adx_4h, adx_1h=adx_1h,
             rsi_4h=rsi_4h, rsi_1h=rsi_1h,
             current_session=current_session,
-            is_trading_session=session_dict.get("is_trading_session", False),
+            is_trading_session=True,      # BUG-5 FIX: 24/5 operation — never penalise off-session
             news_blocked=news_blocked, news_reason=news_reason,
             spread_pips=spread_pips,
             max_spread_pips=settings.max_spread_pips,
@@ -337,6 +436,8 @@ class ProTraderPipeline:
             proposed_sl=trade_levels.sl,
             proposed_tp=trade_levels.tp2,
             min_rr_ratio=settings.min_rr_ratio,
+            # BUG-2 FIX: relax zone violation check during kill zones
+            relaxed_zone_check=is_kill_zone,
         )
 
         hard_blocks_str = "NONE ✓" if not validator_result.mandatory_failures else str(validator_result.mandatory_failures)
@@ -348,17 +449,202 @@ class ProTraderPipeline:
         validator_dict = validator_result.to_dict()
 
         if validator_result.mandatory_failures:
-            return ProTraderDecision(
-                action="HOLD", confidence=0.0, is_actionable=False,
-                regime=regime_result.primary,
-                strategy=strategy_result.active_strategy or "",
-                signal_grade="NO_TRADE",
-                validator_score=validator_result.total_score,
-                pipeline_stage_blocked="VALIDATOR_MANDATORY",
-                reasoning=validator_result.block_reason,
-                conditions_failed=validator_result.mandatory_failures,
-                pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
-            )
+            # ── Enhanced diagnostics for zone blocks ──────────────────────
+            block_key = "|".join(sorted(validator_result.mandatory_failures))
+            block_history = self._consecutive_blocks.setdefault(symbol, [])
+            block_history.append(block_key)
+            if len(block_history) > 10:
+                block_history.pop(0)
+
+            # Count consecutive identical blocks
+            consecutive_same = 0
+            for past_block in reversed(block_history):
+                if past_block == block_key:
+                    consecutive_same += 1
+                else:
+                    break
+            self._block_backoff_cycles[symbol] = consecutive_same
+
+            # Diagnostic logging with actionable info
+            if "DEEP_ZONE_VIOLATION" in validator_result.mandatory_failures:
+                pd_1h = smc_1h.get("premium_discount", "NEUTRAL")
+                swing_high_1h = smc_1h.get("active_swing_high")
+                swing_low_1h = smc_1h.get("active_swing_low")
+                if swing_high_1h and swing_low_1h and swing_high_1h > swing_low_1h:
+                    sw_range = swing_high_1h - swing_low_1h
+                    pct_now = (current_price - swing_low_1h) / sw_range if sw_range > 0 else 0.5
+                    if direction == "SHORT":
+                        unlock_price = swing_low_1h + sw_range * 0.55
+                        logger.info(
+                            f"[{symbol}] ⛔ Deep Zone Block: SHORT in DEEP DISCOUNT "
+                            f"(price at {pct_now:.0%} of swing range). "
+                            f"Need price above {unlock_price:.2f} to unlock SHORT."
+                        )
+                    else:
+                        unlock_price = swing_low_1h + sw_range * 0.45
+                        logger.info(
+                            f"[{symbol}] ⛔ Deep Zone Block: LONG in DEEP PREMIUM "
+                            f"(price at {pct_now:.0%} of swing range). "
+                            f"Need price below {unlock_price:.2f} to unlock LONG."
+                        )
+
+            if consecutive_same >= 3:
+                logger.info(
+                    f"[{symbol}] ⏸ Same block '{block_key}' for {consecutive_same} consecutive cycles — "
+                    f"waiting for market structure to change"
+                )
+
+            # ── Direction Retry: try opposite direction if primary is zone-blocked ──
+            zone_blocks = {"DEEP_ZONE_VIOLATION", "SWING_RANGE_CONTEXT"}
+            has_zone_block = bool(zone_blocks & set(validator_result.mandatory_failures))
+            if has_zone_block and consecutive_same == 1:  # Only retry on first cycle of block
+                opposite_dir = "LONG" if direction == "SHORT" else "SHORT"
+                opposite_action = "BUY" if opposite_dir == "LONG" else "SELL"
+                logger.info(
+                    f"[{symbol}] ♻️ Direction retry: {direction} blocked by zone context → testing {opposite_dir}"
+                )
+
+                # Re-run strategy engine for opposite direction
+                retry_strategy = self._strategy_engine.select(
+                    regime_primary=regime_result.primary,
+                    allowed_strategies=regime_result.allowed_strategies,
+                    smc_4h=smc_4h, smc_1h=smc_1h, smc_15m=smc_15m, smc_1m=smc_1m,
+                    trend_4h=trend_4h, trend_1h=trend_1h, trend_15m=trend_15m,
+                    current_price=current_price,
+                    premium_discount_4h=premium_discount_4h,
+                    premium_discount_1h=premium_discount_1h,
+                    displacement_detected=displacement_detected,
+                    displacement_direction=displacement_direction,
+                    recent_sweep_bars_ago=recent_sweep_bars_ago,
+                    inducement_swept=inducement_swept,
+                    rsi_4h=rsi_4h, rsi_1h=rsi_1h, adx_4h=adx_4h,
+                    _force_direction=opposite_dir,
+                )
+
+                if not retry_strategy.no_strategy_found and retry_strategy.strategy_direction == opposite_dir:
+                    # Re-validate with opposite direction
+                    retry_trade_levels = self._trade_generator.generate(
+                        direction=opposite_dir,
+                        current_bid=current_bid,
+                        current_ask=current_ask,
+                        atr_1h=atr_1h,
+                        smc_4h=smc_4h, smc_1h=smc_1h, smc_15m=smc_15m,
+                        session=session_dict,
+                        account_balance=account_balance,
+                    )
+
+                    if retry_trade_levels.valid:
+                        retry_validator = self._validator.validate(
+                            symbol=symbol,
+                            direction=opposite_dir,
+                            smc_4h=smc_4h, smc_1h=smc_1h, smc_15m=smc_15m, smc_1m=smc_1m,
+                            adx_4h=adx_4h, adx_1h=adx_1h,
+                            rsi_4h=rsi_4h, rsi_1h=rsi_1h,
+                            current_session=current_session,
+                            is_trading_session=session_dict.get("is_trading_session", False),
+                            news_blocked=news_blocked, news_reason=news_reason,
+                            spread_pips=spread_pips,
+                            max_spread_pips=settings.max_spread_pips,
+                            open_positions_count=len(open_positions),
+                            max_open_trades=settings.max_open_trades,
+                            daily_pnl_usd=daily_pnl_usd,
+                            max_daily_loss_usd=settings.max_daily_loss_usd,
+                            current_price=current_price,
+                            proposed_entry=retry_trade_levels.entry,
+                            proposed_sl=retry_trade_levels.sl,
+                            proposed_tp=retry_trade_levels.tp2,
+                            min_rr_ratio=settings.min_rr_ratio,
+                        )
+
+                        if not retry_validator.mandatory_failures and retry_validator.total_score >= self._validator.MIN_VALIDITY_SCORE:
+                            logger.info(
+                                f"[{symbol}] ✅ Direction retry SUCCESS: {opposite_dir} passes validation "
+                                f"(score={retry_validator.total_score:.2f})"
+                            )
+                            # Swap to the retried direction and continue pipeline
+                            direction = opposite_dir
+                            trade_action = opposite_action
+                            strategy_result = retry_strategy
+                            strategy_dict = retry_strategy.to_dict()
+                            trade_levels = retry_trade_levels
+                            trade_levels_dict = trade_levels.to_dict()
+                            rr_ratio = trade_levels.rr_tp2
+                            validator_result = retry_validator
+                            validator_dict = validator_result.to_dict()
+                            hard_blocks_str = "NONE ✓" if not validator_result.mandatory_failures else str(validator_result.mandatory_failures)
+                            logger.info(
+                                f"[{symbol}] Validator (retry): PASS ✓ | "
+                                f"score={validator_result.total_score:.2f} | hard_blocks={hard_blocks_str}"
+                            )
+                            # Fall through to confluence engine below
+                        else:
+                            retry_blocks = retry_validator.mandatory_failures or [f"score={retry_validator.total_score:.2f}"]
+                            logger.info(
+                                f"[{symbol}] ♻️ Direction retry {opposite_dir} also blocked: {retry_blocks}"
+                            )
+                            hold = ProTraderDecision(
+                                action="HOLD", confidence=0.0, is_actionable=False,
+                                regime=regime_result.primary,
+                                strategy=strategy_result.active_strategy or "",
+                                signal_grade="NO_TRADE",
+                                validator_score=validator_result.total_score,
+                                pipeline_stage_blocked="VALIDATOR_MANDATORY",
+                                reasoning=f"{validator_result.block_reason} | Retry {opposite_dir} also failed: {retry_blocks}",
+                                conditions_failed=validator_result.mandatory_failures,
+                                pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
+                            )
+                            self._last_hold_cache[symbol] = hold
+                            return hold
+                    else:
+                        logger.info(
+                            f"[{symbol}] ♻️ Direction retry {opposite_dir}: trade levels invalid ({retry_trade_levels.rejection_reason})"
+                        )
+                        hold = ProTraderDecision(
+                            action="HOLD", confidence=0.0, is_actionable=False,
+                            regime=regime_result.primary,
+                            strategy=strategy_result.active_strategy or "",
+                            signal_grade="NO_TRADE",
+                            validator_score=validator_result.total_score,
+                            pipeline_stage_blocked="VALIDATOR_MANDATORY",
+                            reasoning=validator_result.block_reason,
+                            conditions_failed=validator_result.mandatory_failures,
+                            pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
+                        )
+                        self._last_hold_cache[symbol] = hold
+                        return hold
+                else:
+                    if retry_strategy.no_strategy_found:
+                        logger.info(
+                            f"[{symbol}] ♻️ Direction retry {opposite_dir}: no valid strategy found"
+                        )
+                    hold = ProTraderDecision(
+                        action="HOLD", confidence=0.0, is_actionable=False,
+                        regime=regime_result.primary,
+                        strategy=strategy_result.active_strategy or "",
+                        signal_grade="NO_TRADE",
+                        validator_score=validator_result.total_score,
+                        pipeline_stage_blocked="VALIDATOR_MANDATORY",
+                        reasoning=validator_result.block_reason,
+                        conditions_failed=validator_result.mandatory_failures,
+                        pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
+                    )
+                    self._last_hold_cache[symbol] = hold
+                    return hold
+            else:
+                # No zone block or too many retries — standard HOLD
+                hold = ProTraderDecision(
+                    action="HOLD", confidence=0.0, is_actionable=False,
+                    regime=regime_result.primary,
+                    strategy=strategy_result.active_strategy or "",
+                    signal_grade="NO_TRADE",
+                    validator_score=validator_result.total_score,
+                    pipeline_stage_blocked="VALIDATOR_MANDATORY",
+                    reasoning=validator_result.block_reason,
+                    conditions_failed=validator_result.mandatory_failures,
+                    pipeline_elapsed_ms=(time.time() - pipeline_start) * 1000,
+                )
+                self._last_hold_cache[symbol] = hold
+                return hold
 
         # ─────────────────────────────────────────────────────────────────────
         # STAGE 5: Confluence Engine
@@ -429,10 +715,10 @@ class ProTraderPipeline:
                 round(0.70 * strat_score + 0.30 * validator_result.total_score, 2)
             )
             decision = ProTraderDecision(
-                action=direction,
+                action=trade_action,
                 confidence=strat_conf,
                 is_actionable=True,
-                pattern=direction,
+                pattern=trade_action,
                 direction=direction,
                 entry=trade_levels.entry,
                 sl=trade_levels.sl,
@@ -674,6 +960,8 @@ class ProTraderPipeline:
             critic_elapsed_ms=critic_elapsed,
         )
 
+        # Clear staleness cache — this cycle produced a non-trivial result
+        self._last_hold_cache.pop(symbol, None)
         self._log_cli_trade_box(decision, symbol, current_bid, current_ask, trade_levels)
         return decision
 

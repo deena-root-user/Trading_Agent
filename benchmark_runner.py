@@ -7,7 +7,7 @@ import json
 import time
 import httpx
 
-MODELS_TO_TEST = ["qwen2.5:3b", "qwen2.5:14b", "deepseek-r1:32b", "qwen2.5vl:32b"]
+MODELS_TO_TEST = ["qwen2.5:3b", "qwen2.5:14b", "gpt-oss:20b", "qwen3-coder:30b"]
 
 SCENARIOS = [
     {

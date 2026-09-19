@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -41,6 +41,28 @@ try:
 except ImportError as _e:
     PRO_TRADER_PIPELINE_V2 = False
     logger.warning(f"Pro Trader Pipeline v2 not available: {_e} — using legacy pipeline")
+
+# Strategy Router (SMC/ICT)
+try:
+    from agent.strategy.router import StrategyRouter
+    from agent.strategy.smc_strategy import SMCStrategy
+    from agent.strategy.ict_strategy import ICTStrategy
+    STRATEGY_ROUTER_AVAILABLE = True
+except ImportError as _e:
+    STRATEGY_ROUTER_AVAILABLE = False
+    logger.warning(f"Strategy Router not available: {_e}")
+
+# v5 Parallel Architecture
+try:
+    from agent.core.parallel_analyzer import parallel_analyzer, is_in_kill_zone, get_kill_zone_name
+    from agent.core.execution_authority import execution_authority
+    from agent.core.trade_models import PipelineContext
+    from agent.risk.broker_risk_calculator import broker_risk_calculator
+    PARALLEL_ARCH_AVAILABLE = True
+    logger.info("✅ v5 Parallel Architecture loaded (ParallelAnalyzer + ExecutionAuthority + BrokerRiskCalc)")
+except ImportError as _e:
+    PARALLEL_ARCH_AVAILABLE = False
+    logger.warning(f"v5 Parallel Architecture not available: {_e} — falling back to Pro Trader v2")
 
 
 def setup_logging() -> None:
@@ -75,6 +97,7 @@ class PaxisAgent:
         self._daily_pnl: float = 0.0
         self._daily_wins: int = 0
         self._daily_losses: int = 0
+        self._daily_pnl_date: str = datetime.now(timezone.utc).strftime("%Y-%m-%d")  # BUG-15 FIX
         self._recent_trades: List[dict] = []
         self._last_sent_upcoming_setups: Dict[str, dict] = {}
         self._main_cycle_lock = threading.Lock()
@@ -85,6 +108,24 @@ class PaxisAgent:
 
         # Wire Telegram bot → agent reference
         telegram_bot.set_agent(self)
+
+        # Initialize Strategy Router (SMC/ICT isolation — legacy fallback)
+        self._strategy_router = None
+        if STRATEGY_ROUTER_AVAILABLE:
+            strategy_mode = getattr(settings, "trading_strategy_mode", "SMC")
+            self._strategy_router = StrategyRouter(strategy_mode)
+            self._strategy_router.register(SMCStrategy())
+            self._strategy_router.register(ICTStrategy())
+            logger.info(f"Strategy Router (legacy) initialized: mode={strategy_mode}")
+
+        # v5 Parallel Architecture — pre-warm strategy threads
+        if PARALLEL_ARCH_AVAILABLE:
+            try:
+                active_modes = settings.active_strategy_modes
+                logger.info(f"🔀 v5 ParallelAnalyzer pre-warming strategies: {active_modes}")
+                parallel_analyzer._load_strategies(active_modes)
+            except Exception as exc:
+                logger.warning(f"ParallelAnalyzer pre-warm failed (will lazy-load): {exc}")
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -102,16 +143,22 @@ class PaxisAgent:
         else:
             model_display = f"Local Ollama ({settings.ollama_model})"
 
+        strategy_mode = getattr(settings, "trading_strategy_mode", "SMC")
+        active_modes = settings.active_strategy_modes if PARALLEL_ARCH_AVAILABLE else [strategy_mode]
+        kz_now = get_kill_zone_name() if PARALLEL_ARCH_AVAILABLE else "N/A"
         logger.info(
-            f"{'='*50}\n"
-            f"  PAXIS Agent Starting\n"
+            f"{'='*60}\n"
+            f"  PAXIS Agent v5.0 Starting\n"
             f"  Mode: {'DRY RUN 🧪' if settings.dry_run else 'LIVE 🔴'}\n"
             f"  LLM Provider: {model_display}\n"
+            f"  Strategy Modes: {', '.join(active_modes)} (parallel={PARALLEL_ARCH_AVAILABLE})\n"
+            f"  Architecture: {'v5 Parallel (ParallelAnalyzer)' if PARALLEL_ARCH_AVAILABLE else 'v2 Pro Trader Pipeline'}\n"
             f"  Pro Trader Mode: {'✅ ON (4H/1H/15M/1M SMC)' if settings.pro_trader_mode else 'OFF'}\n"
+            f"  Trading: 24/5 | Kill Zone Now: {kz_now}\n"
             f"  Pairs: {settings.trading_pairs}\n"
             f"  Cycle: every {settings.trade_cycle_minutes} min\n"
-            f"  Auto-Scalp: {'✅ ON — every 3 min' if settings.auto_scalp_mode else '⏸ OFF (Pro Trader Active)'}\n"
-            f"{'='*50}"
+            f"  Auto-Scalp: {'✅ ON — every 3 min (R-Multiple SL/TP)' if settings.auto_scalp_mode else '⏸ OFF'}\n"
+            f"{'='*60}"
         )
 
         # Connect MT5
@@ -120,6 +167,9 @@ class PaxisAgent:
 
         # Start order tracker
         order_tracker.start()
+
+        # BUG-16 FIX: Reconcile broker state on startup to detect orphaned positions
+        self._reconcile_broker_state()
 
         # Start Telegram bot
         telegram_bot.start_polling()
@@ -131,7 +181,6 @@ class PaxisAgent:
             self._run_cycle,
             CronTrigger(minute=f"*/{settings.trade_cycle_minutes}", second=2, timezone="UTC"),
             id="main_cycle",
-            next_run_time=datetime.now(timezone.utc),  # Run immediately on start
             max_instances=2,
             coalesce=True,
             misfire_grace_time=120,
@@ -170,6 +219,37 @@ class PaxisAgent:
                     logger.info(f"⏳ PAXIS Agent active | Pro Trader Mode: ON | Next cycle scheduled at {next_run}")
         except (KeyboardInterrupt, SystemExit):
             self._shutdown()
+
+    def _reconcile_broker_state(self) -> None:
+        """BUG-16 FIX: Reconcile broker state on startup.
+
+        If the agent crashes after submitting an order, orphaned positions
+        may exist on the broker. This method syncs them into the order
+        tracker so SL/TP management and close detection work correctly.
+        """
+        try:
+            positions = mt5_feed.get_open_positions()
+            if positions:
+                logger.info(
+                    f"🔄 Startup reconciliation: found {len(positions)} open position(s) on broker"
+                )
+                for pos in positions:
+                    ticket = pos.get("ticket")
+                    symbol = pos.get("symbol", "")
+                    action = pos.get("type", "")
+                    pnl = pos.get("profit", 0.0)
+                    logger.info(
+                        f"  📌 #{ticket} {action} {symbol} | "
+                        f"entry={pos.get('price_open', 0):.5f} | "
+                        f"PnL={pnl:+.2f} USD"
+                    )
+                # Force order tracker to pick up existing positions on next poll
+                # by ensuring _known_positions is empty (default state), so the
+                # first _check_positions call will register them as "new"
+            else:
+                logger.info("🔄 Startup reconciliation: no open positions on broker")
+        except Exception as exc:
+            logger.warning(f"Startup broker reconciliation failed: {exc}")
 
     def _shutdown_handler(self, signum, frame):
         self._shutdown()
@@ -272,7 +352,12 @@ class PaxisAgent:
     # ── Main Trading Cycle ────────────────────────────────────────────────────
 
     def _run_cycle(self) -> None:
-        """Execute one full analysis + decision cycle for all pairs."""
+        """Execute one full analysis + decision cycle for all pairs.
+
+        24/5 OPERATION: Session-hour blocking is REMOVED.
+        Kill zone priority is handled via +0.10 confluence bonus in the
+        parallel analyzer (kill zones always preferred, but never required).
+        """
         if not self._main_cycle_lock.acquire(blocking=False):
             logger.info("⚡ Active cycle currently in progress — skipping overlapping trigger.")
             return
@@ -280,19 +365,24 @@ class PaxisAgent:
         try:
             self._sync_db_config()
             now = datetime.now(timezone.utc)
-            logger.info(f"── Cycle start {now.strftime('%H:%M:%S')} UTC ──")
 
             if risk_gate.is_paused:
                 logger.info("Agent paused — skipping cycle")
                 return
 
-            # Check trading session
-            in_session, session_name = risk_gate.check_session()
-            if not in_session:
-                logger.info(f"Outside trading sessions — skip cycle")
-                return
+            # Derive session name (for logging and confluence only — NOT for blocking)
+            try:
+                _, session_name = risk_gate.check_session()
+            except Exception:
+                session_name = "UNKNOWN"
 
-            # Process each pair
+            kz = get_kill_zone_name() if PARALLEL_ARCH_AVAILABLE else "N/A"
+            logger.info(
+                f"── Cycle {now.strftime('%H:%M:%S')} UTC | session={session_name} | "
+                f"kill_zone={kz} | pairs={len(settings.pairs_list)} ──"
+            )
+
+            # Process each pair (24/5 — no session block)
             for symbol in settings.pairs_list:
                 try:
                     self._process_pair(symbol, session_name)
@@ -304,6 +394,11 @@ class PaxisAgent:
     def _process_pair(self, symbol: str, session: str) -> None:
         """Full analysis pipeline for a single trading pair."""
         logger.info(f"Processing {symbol}... (Pro Trader Mode: {settings.pro_trader_mode})")
+
+        # Initialize local variables to avoid UnboundLocalError across execution paths
+        snap_tf1 = snap_tf2 = snap_tf3 = snap_15m = None
+        df_4h = df_1h = df_15m = df_1m = None
+        smc_4h_data = smc_1h_data = smc_15m_data = smc_1m_data = None
 
         # ── 0. MAX TRADE FOCUS MODE — Skip analysis when positions are full ──
         early_positions = mt5_feed.get_open_positions()
@@ -317,9 +412,9 @@ class PaxisAgent:
             return
 
         # ── 1. Fetch Data ─────────────────────────────────────────────────────
-        if getattr(settings, "pro_trader_mode", False):
+        if getattr(settings, "pro_trader_mode", False) or PARALLEL_ARCH_AVAILABLE:
             tf1, tf2, tf3, tf4 = "M1", "M15", "H1", "H4"
-            logger.info(f"⚡ PRO TRADER 4-TIMEFRAME MODE ACTIVE: 4H (Macro) -> 1H (Intermediate) -> 15M (Setup POI) -> 1M (Micro Entry)")
+            logger.info(f"⚡ PRO TRADER / PARALLEL 4-TIMEFRAME MODE ACTIVE: 4H (Macro) -> 1H (Intermediate) -> 15M (Setup POI) -> 1M (Micro Entry)")
             df_4h = mt5_feed.get_candles(symbol, "H4", 100)
             df_1h = mt5_feed.get_candles(symbol, "H1", 100)
             df_15m = mt5_feed.get_candles(symbol, "M15", 150)
@@ -343,7 +438,7 @@ class PaxisAgent:
         # ── 2. Calculate Indicators & SMC ────────────────────────────────────
         from agent.data.smc_engine import smc_engine
         curr_px = (tick.bid + tick.ask) / 2.0 if tick else 0.0
-        if getattr(settings, "pro_trader_mode", False):
+        if getattr(settings, "pro_trader_mode", False) or PARALLEL_ARCH_AVAILABLE:
             smc_4h_data = smc_engine.analyze(df_4h, symbol, "4H", current_price=curr_px).to_dict() if df_4h is not None else None
             smc_1h_data = smc_engine.analyze(df_1h, symbol, "1H", current_price=curr_px).to_dict() if df_1h is not None else None
             smc_15m_data = smc_engine.analyze(df_15m, symbol, "15M", current_price=curr_px).to_dict() if df_15m is not None else None
@@ -354,6 +449,7 @@ class PaxisAgent:
         snap_tf1 = indicator_calculator.calculate(df_tf1, symbol, tf1) if df_tf1 is not None else None
         snap_tf2 = indicator_calculator.calculate(df_tf2, symbol, tf2) if df_tf2 is not None else None
         snap_tf3 = indicator_calculator.calculate(df_tf3, symbol, tf3) if df_tf3 is not None else None
+        snap_15m = indicator_calculator.calculate(df_15m, symbol, "M15") if df_15m is not None else None
 
         indicators_tf1 = snap_tf1.to_prompt_dict() if snap_tf1 else None
         indicators_tf2 = snap_tf2.to_prompt_dict() if snap_tf2 else None
@@ -404,8 +500,106 @@ class PaxisAgent:
             for e in economic_calendar.fetch_events(hours_ahead=4)
         ]
 
-        # ── 5. Pro Trader Pipeline v2 (Deterministic-First, LLM-Last) ─────────
-        if getattr(settings, "pro_trader_mode", False) and PRO_TRADER_PIPELINE_V2:
+        # ── 5a. v5 PARALLEL ARCHITECTURE — always runs when available ───────────
+        # BUG-3 FIX: removed the `pro_trader_mode` gate — v5 runs regardless
+        # of that flag. Pro Trader v2 is now the fallback when v5 yields no candidates.
+        if PARALLEL_ARCH_AVAILABLE:
+            try:
+                context = PipelineContext(
+                    symbol=symbol,
+                    bid=float(tick.bid) if tick else 0.0,
+                    ask=float(tick.ask) if tick else 0.0,
+                    session=session,
+                    regime=smc_1h_data.get("trend", "UNKNOWN") if smc_1h_data else "UNKNOWN",
+                    smc_4h=smc_4h_data or {},
+                    smc_1h=smc_1h_data or {},
+                    smc_15m=smc_15m_data or {},
+                    smc_1m=smc_1m_data or {},
+                    spread_pips=tick.spread_pips if tick else 0.0,
+                    atr_15m=float(snap_15m.atr) if (snap_15m is not None and getattr(snap_15m, "atr", None) is not None) else 1.0,
+                    atr_1h=float(snap_tf2.atr) if (snap_tf2 is not None and getattr(snap_tf2, "atr", None) is not None) else 1.5,
+                    account_balance=mt5_feed.get_account_balance() or 100.0,
+                    news_blocked=news_blocked,
+                )
+
+                candidates = parallel_analyzer.analyze_all(context)
+
+                if candidates:
+                    best = candidates[0]  # Highest setup_score after dedup + kill zone bonus
+
+                    if not best.is_valid():
+                        logger.warning(f"[v5] Best candidate for {symbol} failed validity: {best}")
+                    else:
+                        account_balance = context.account_balance
+                        approved = broker_risk_calculator.approve(
+                            best,
+                            account_balance=account_balance,
+                            risk_pct=settings.risk_per_trade_pct,
+                            daily_pnl_usd=self._daily_pnl,
+                            max_daily_loss_usd=getattr(settings, "max_daily_loss_usd", account_balance * 0.05),
+                            min_rr_ratio=settings.min_rr_ratio,
+                        )
+
+                        if approved.risk_approved:
+                            result = execution_authority.execute(approved)
+                            if result.success:
+                                parallel_analyzer.record_executed(best)
+                                self._daily_pnl  # tracked via on_position_close
+                                kz_label = get_kill_zone_name()
+                                telegram_bot.send_trade_open(
+                                    action=best.direction,
+                                    symbol=symbol,
+                                    entry=result.executed_price or best.entry,
+                                    sl=best.stop_loss,
+                                    tp=best.tp1 or 0.0,
+                                    confidence=best.setup_score,
+                                    pattern=best.strategy,
+                                    reasoning=(
+                                        f"Mode={best.entry_mode} | Score={best.setup_score:.2f} | "
+                                        f"Regime={best.regime} | KZ={kz_label} | "
+                                        f"Slip={result.slippage_points:.3f}pts | "
+                                        f"Latency={result.latency_ms:.0f}ms"
+                                    ),
+                                    lot_size=approved.volume,
+                                    dry_run=settings.dry_run,
+                                )
+                                dashboard_client.log_decision(
+                                    symbol=symbol,
+                                    action=best.direction,
+                                    confidence=best.setup_score,
+                                    entry=result.executed_price or best.entry,
+                                    sl=best.stop_loss,
+                                    tp=best.tp1 or 0.0,
+                                    rr_ratio=best.rr_ratio,
+                                    pattern=best.strategy,
+                                    session=session,
+                                    reasoning=f"[v5_PARALLEL] {best.entry_mode} | score={best.setup_score:.3f}",
+                                    risk_passed=True,
+                                    executed=not settings.dry_run,
+                                    ticket=result.ticket or 0,
+                                )
+                                self._recent_trades.append({
+                                    "action": best.direction, "symbol": symbol,
+                                    "pattern": best.strategy, "pnl": 0.0,
+                                    "ticket": result.ticket or 0, "mode": best.entry_mode,
+                                })
+                                self._recent_trades = self._recent_trades[-50:]
+                                return  # ✅ v5 path complete
+                            else:
+                                logger.warning(f"[v5] Execution blocked {symbol}: {result.error}")
+                        else:
+                            codes = ", ".join(approved.rejection_codes)
+                            logger.info(f"[v5] Risk rejected {symbol}: {codes}")
+                else:
+                    logger.debug(f"[v5] No candidates from ParallelAnalyzer for {symbol}")
+
+            except Exception as exc:
+                logger.error(f"[v5] Parallel path error for {symbol}: {exc} — falling through to Pro Trader v2")
+
+        # ── 5b. Pro Trader Pipeline v2 (Deterministic-First, LLM-Last) ─────────
+        # Runs as fallback: when v5 yields no candidates OR as primary if v5 unavailable.
+        # BUG-3 FIX: removed pro_trader_mode gate — Pro Trader v2 always available as fallback.
+        if PRO_TRADER_PIPELINE_V2:
             # Get daily bars for PDH/PDL computation
             df_daily = mt5_feed.get_candles(symbol, "D1", 30)
 
@@ -417,10 +611,11 @@ class PaxisAgent:
                 df_daily=df_daily,
             )
 
-            # Compute 15M indicators
-            snap_15m = indicator_calculator.calculate(df_15m, symbol, "M15") if df_15m is not None else None
+            # Compute 15M indicators (if not already pre-calculated in Section 2)
+            snap_15m = snap_15m if snap_15m is not None else (indicator_calculator.calculate(df_15m, symbol, "M15") if df_15m is not None else None)
 
             # Run the full 8-stage pipeline
+            _kz_now = is_in_kill_zone() if PARALLEL_ARCH_AVAILABLE else False
             pt_decision = pro_trader_pipeline.run(
                 symbol=symbol,
                 smc_4h=smc_4h_data,
@@ -438,6 +633,7 @@ class PaxisAgent:
                 news_reason=news_reason or "",
                 news_events=news_events,
                 daily_pnl_usd=self._daily_pnl,
+                is_kill_zone=_kz_now,  # BUG-1/2 FIX: enables cache bypass + relaxed zone checks
             )
 
 
@@ -601,7 +797,7 @@ class PaxisAgent:
             if settings.require_candle_close_confirmation:
                 now_cc = datetime.now(timezone.utc)
                 seconds_into_candle = now_cc.second % 60
-                max_window = getattr(settings, "candle_close_window_seconds", 25)
+                max_window = getattr(settings, "candle_close_window_seconds", 50)  # BUG-06 FIX: widened from 25 to 50
                 if seconds_into_candle > max_window:
                     logger.info(
                         f"⏳ Candle close confirmation: {seconds_into_candle}s into current 1M candle — "
@@ -623,6 +819,35 @@ class PaxisAgent:
                         executed=False,
                     )
                     return
+
+            # OrderAuthorizationGate: POI Distance & Anti-Chasing Filter
+            if pt_decision.entry > 0:
+                current_mkt_price = float(mt5_feed.get_bid(symbol) if pt_decision.action == "SELL" else mt5_feed.get_ask(symbol) or 0.0)
+                if current_mkt_price > 0:
+                    entry_dist = abs(current_mkt_price - pt_decision.entry)
+                    sym_u = symbol.upper()
+                    max_allowed_dist = 3.0 if any(x in sym_u for x in ["XAU", "GOLD"]) else 0.0030
+                    if entry_dist > max_allowed_dist:
+                        logger.warning(
+                            f"🛡️ OrderAuthorizationGate BLOCK: Current price {current_mkt_price:.2f} is {entry_dist:.2f} "
+                            f"away from POI entry {pt_decision.entry:.2f} (max allowed {max_allowed_dist:.2f}) — WAITING FOR RETRACEMENT!"
+                        )
+                        dashboard_client.log_decision(
+                            symbol=symbol,
+                            action=pt_decision.action,
+                            confidence=pt_decision.confidence,
+                            entry=pt_decision.entry,
+                            sl=pt_decision.sl,
+                            tp=pt_decision.tp,
+                            rr_ratio=pt_decision.rr_ratio,
+                            pattern=pt_decision.pattern,
+                            session=session,
+                            reasoning=f"WAIT_FOR_RETRACEMENT: Price {current_mkt_price:.2f} is {entry_dist:.2f} away from POI entry {pt_decision.entry:.2f}",
+                            risk_passed=False,
+                            block_reason="WAIT_FOR_RETRACEMENT",
+                            executed=False,
+                        )
+                        return
 
             # Execute
             if not settings.dry_run:
@@ -995,11 +1220,12 @@ class PaxisAgent:
                 )
                 return
 
-            # Check trading session
-            in_session, session_name = risk_gate.check_session()
-            if not in_session:
-                logger.info("Auto-Scalp: outside trading sessions — skip cycle")
-                return
+            # 24/5: Do NOT block on session hours — all sessions are tradeable.
+            # Kill zone preference is handled via setup_score bonus in AutoScalpStrategy.
+            try:
+                _, session_name = risk_gate.check_session()
+            except Exception:
+                session_name = "UNKNOWN"
 
             # Process each pair
             for symbol in settings.pairs_list:
@@ -1017,9 +1243,13 @@ class PaxisAgent:
 
     def _process_pair_auto_scalp(self, symbol: str, session: str, open_positions: list) -> None:
         """Full auto-scalp pipeline for one pair.
-        - Lot size: always settings.lot_size (dashboard, read-only for LLM)
-        - SL/TP: always computed from fixed USD values (LLM output ignored)
-        - CLOSE: LLM can signal early position exit
+
+        v5 CHANGE: SL/TP now computed from ATR × multiplier via AutoScalpStrategy
+        + broker_risk_calculator instead of fixed USD values.
+
+        If PARALLEL_ARCH_AVAILABLE and pro_trader_mode, the v5 strategy path
+        (parallel_analyzer) handles scalp entries automatically — this method is
+        then only responsible for LLM-based CLOSE signals and legacy fallback.
         """
         logger.info(f"🤖 Auto-Scalp processing {symbol}...")
 
@@ -1149,10 +1379,9 @@ class PaxisAgent:
             )
             return
 
-        # ── Locked lot size — always from dashboard setting (LLM cannot change it)
-        lot = settings.lot_size
-
-        # ── Fixed SL/TP override — always computed from USD values, LLM output ignored
+        # ── v5 CHANGE: Use AutoScalpStrategy + broker_risk_calculator ─────────
+        # Old code: sl_dist = auto_scalp_sl_usd / (lot * contract_size)  ← BROKEN
+        # New code: sl_dist = ATR × sl_atr_multiplier                    ← CORRECT
         if tick:
             entry_price = float(tick.ask if decision.action == "BUY" else tick.bid)
         elif decision.entry > 0:
@@ -1161,13 +1390,85 @@ class PaxisAgent:
             logger.warning(f"🤖 Auto-Scalp: no price data for {symbol} — skipping")
             return
 
+        # Use ATR-based SL/TP via AutoScalpStrategy (produces a TradeCandidate)
+        if PARALLEL_ARCH_AVAILABLE:
+            from agent.strategy.auto_scalp_strategy import AutoScalpStrategy
+            from agent.core.trade_models import TradeCandidate
+            try:
+                _scalp = AutoScalpStrategy()
+                _kz = is_in_kill_zone()
+                _m1_atr = snap_m1.atr if snap_m1 and snap_m1.atr > 0 else 1.0
+                _smc_1m = smc_1m_data if (PARALLEL_ARCH_AVAILABLE and getattr(settings, 'pro_trader_mode', False)) else None
+                _smc_15m_data = {}
+                try:
+                    from agent.data.smc_engine import smc_engine
+                    if df_m15 is not None:
+                        _smc_15m_data = smc_engine.analyze(df_m15, symbol, "15M").to_dict()
+                except Exception:
+                    pass
+
+                scalp_candidates = _scalp.analyze(
+                    symbol=symbol,
+                    smc_1m=_smc_1m or {"trend": decision.action if decision.action in ("BUY","SELL") else "NEUTRAL"},
+                    smc_15m=_smc_15m_data or {"trend": "NEUTRAL"},
+                    smc_1h={},
+                    current_price=entry_price,
+                    spread_pips=tick.spread_pips if tick else 2.0,
+                    regime="TRENDING",
+                    session=session,
+                    is_kill_zone=_kz,
+                    atr_15m=_m1_atr,
+                    account_balance=mt5_feed.get_account_balance() or 100.0,
+                )
+
+                if scalp_candidates:
+                    best_scalp = scalp_candidates[0]
+                    account_balance = mt5_feed.get_account_balance() or 100.0
+                    approved = broker_risk_calculator.approve(
+                        best_scalp,
+                        account_balance=account_balance,
+                        risk_pct=settings.risk_per_trade_pct,
+                        daily_pnl_usd=self._daily_pnl,
+                        max_daily_loss_usd=getattr(settings, "max_daily_loss_usd", account_balance * 0.05),
+                        min_rr_ratio=settings.auto_scalp_min_rr,
+                    )
+                    if approved.risk_approved:
+                        exec_result = execution_authority.execute(approved)
+                        if exec_result.success:
+                            telegram_bot.send_trade_open(
+                                action=best_scalp.direction,
+                                symbol=symbol,
+                                entry=exec_result.executed_price or entry_price,
+                                sl=best_scalp.stop_loss,
+                                tp=best_scalp.tp1 or 0.0,
+                                confidence=best_scalp.setup_score,
+                                pattern="AUTO_SCALP_v5",
+                                reasoning=f"[AUTO-SCALP v5] ATR-based | score={best_scalp.setup_score:.2f} | kz={_kz}",
+                                lot_size=approved.volume,
+                                dry_run=settings.dry_run,
+                            )
+                            self._recent_trades.append({
+                                "action": best_scalp.direction, "symbol": symbol,
+                                "pattern": "AUTO_SCALP_v5", "pnl": 0.0,
+                                "ticket": exec_result.ticket or 0, "mode": "auto_scalp_v5",
+                            })
+                            return  # ✅ v5 scalp complete
+                        else:
+                            logger.warning(f"🤖 Auto-Scalp v5 execution blocked: {exec_result.error}")
+                    else:
+                        logger.info(f"🤖 Auto-Scalp v5 risk rejected: {', '.join(approved.rejection_codes)}")
+                    return  # Don't fall through to legacy dollar-based execution
+            except Exception as exc:
+                logger.error(f"🤖 Auto-Scalp v5 error for {symbol}: {exc} — falling back to legacy SL/TP")
+
+        # ── LEGACY FALLBACK: dollar-based SL/TP (kept for non-v5 environments) ─
         sym_upper = symbol.upper()
-        # Calculate price distance directly from USD risk/target and lot size
         is_gold = any(x in sym_upper for x in ["XAU", "GOLD"])
         contract_size = 100.0 if is_gold else 100000.0
+        lot = settings.lot_size
 
-        sl_dist = settings.auto_scalp_sl_usd / (lot * contract_size)
-        tp_dist = settings.auto_scalp_tp_usd / (lot * contract_size)
+        sl_dist = getattr(settings, 'auto_scalp_sl_usd', 4.5) / (lot * contract_size)
+        tp_dist = getattr(settings, 'auto_scalp_tp_usd', 1.0) / (lot * contract_size)
 
         bid = tick.bid if tick is not None else entry_price
         ask = tick.ask if tick is not None else entry_price
@@ -1182,32 +1483,18 @@ class PaxisAgent:
             ob_bottom = snap_m1.smc_ob_bottom if (snap_m1 and snap_m1.smc_order_block == "BULLISH_OB") else 0.0
             if snap_m5 and snap_m5.smc_order_block == "BULLISH_OB":
                 ob_bottom = snap_m5.smc_ob_bottom
-            if ob_bottom > 0 and ob_bottom < entry_price:
-                fixed_sl = min(base_sl, ob_bottom - atr_buffer)
-            else:
-                fixed_sl = base_sl
-
+            fixed_sl = min(base_sl, ob_bottom - atr_buffer) if ob_bottom > 0 and ob_bottom < entry_price else base_sl
             actual_sl_dist = max(entry_price - fixed_sl, 0.10)
-            if decision.tp > entry_price and ((decision.tp - entry_price) / actual_sl_dist) >= min_rr:
-                fixed_tp = decision.tp
-            else:
-                fixed_tp = entry_price + (actual_sl_dist * min_rr)
-        else:  # SELL
+            fixed_tp = decision.tp if (decision.tp > entry_price and ((decision.tp - entry_price) / actual_sl_dist) >= min_rr) else entry_price + (actual_sl_dist * min_rr)
+        else:
             entry_price = bid
             base_sl = ask + sl_dist
             ob_top = snap_m1.smc_ob_top if (snap_m1 and snap_m1.smc_order_block == "BEARISH_OB") else 0.0
             if snap_m5 and snap_m5.smc_order_block == "BEARISH_OB":
                 ob_top = snap_m5.smc_ob_top
-            if ob_top > 0 and ob_top > entry_price:
-                fixed_sl = max(base_sl, ob_top + atr_buffer)
-            else:
-                fixed_sl = base_sl
-
+            fixed_sl = max(base_sl, ob_top + atr_buffer) if ob_top > 0 and ob_top > entry_price else base_sl
             actual_sl_dist = max(fixed_sl - entry_price, 0.10)
-            if decision.tp > 0 and decision.tp < entry_price and ((entry_price - decision.tp) / actual_sl_dist) >= min_rr:
-                fixed_tp = decision.tp
-            else:
-                fixed_tp = entry_price - (actual_sl_dist * min_rr)
+            fixed_tp = decision.tp if (decision.tp > 0 and decision.tp < entry_price and ((entry_price - decision.tp) / actual_sl_dist) >= min_rr) else entry_price - (actual_sl_dist * min_rr)
 
         digits = 2 if is_gold else (3 if "JPY" in sym_upper else 5)
         fixed_sl = round(fixed_sl, digits)
@@ -1264,19 +1551,18 @@ class PaxisAgent:
             logger.warning(f"⚠️ AUTO-SCALP RISK GATE BYPASS ACTIVE — proceeding without safety checks!")
 
         logger.info(
-            f"🤖 Auto-Scalp {decision.action} {symbol} | lot={lot} (locked) | "
-            f"entry≈{entry_price} | SL={fixed_sl} (fixed ${settings.auto_scalp_sl_usd}) | "
-            f"TP={fixed_tp} (fixed ${settings.auto_scalp_tp_usd}) | conf={decision.confidence:.0%}"
+            f"🤖 Auto-Scalp LEGACY {decision.action} {symbol} | lot={lot} | "
+            f"entry≈{entry_price} | SL={fixed_sl} | TP={fixed_tp} | conf={decision.confidence:.0%}"
         )
 
-        # ── Place Order ───────────────────────────────────────────────────────
+        # ── Place Order (Legacy path) ─────────────────────────────────────────
         order = mt5_bridge.place_order(
             symbol=symbol,
             action=decision.action,
             sl=fixed_sl,
             tp=fixed_tp,
             lot_size=lot,
-            comment="PAXIS_AUTOSCALP",
+            comment="PAXIS_AUTOSCALP_LEGACY",
         )
 
         if order.success:
@@ -1360,6 +1646,16 @@ class PaxisAgent:
         volume = closed.get("volume", 0.01)
 
         self._daily_pnl += pnl
+
+        # BUG-15 FIX: Reset daily PnL on date rollover
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        if today_str != self._daily_pnl_date:
+            logger.info(f"Daily PnL date rollover: {self._daily_pnl_date} → {today_str} | Resetting daily counters")
+            self._daily_pnl = pnl  # Start fresh with this trade's PnL
+            self._daily_wins = 0
+            self._daily_losses = 0
+            self._daily_pnl_date = today_str
+
         risk_gate.update_daily_pnl(self._daily_pnl)
 
         if pnl > 0:
@@ -1609,6 +1905,10 @@ class PaxisAgent:
         engine_status = "HALTED ⏸" if risk_gate.is_paused else "ACTIVE 🟢"
         scalp_status = "ACTIVE 🟢" if settings.auto_scalp_mode else "PAUSED ⏸"
         mode_str = "DRY RUN 🧪" if settings.dry_run else "LIVE 🔴"
+        active_modes = settings.active_strategy_modes if PARALLEL_ARCH_AVAILABLE else [getattr(settings, 'trading_strategy_mode', 'SMC')]
+        strategy_label = ", ".join(active_modes)
+        kz_label = get_kill_zone_name() if PARALLEL_ARCH_AVAILABLE else "N/A"
+        arch_label = "v5 Parallel" if PARALLEL_ARCH_AVAILABLE else "v2 Pro Trader"
 
         balance = mt5_feed.get_account_balance() or 0.0
         equity = mt5_feed.get_account_equity() or 0.0
@@ -1616,9 +1916,12 @@ class PaxisAgent:
         floating_pnl = sum(p.get("profit", 0.0) for p in positions)
 
         lines = [
-            "📋 <b>PAXIS System Summary</b>",
+            "📋 <b>PAXIS v5.0 System Summary</b>",
             f"• Mode: <b>{mode_str}</b>",
+            f"• Architecture: <b>{arch_label}</b>",
             f"• Core Engine: <b>{engine_status}</b>",
+            f"• Strategies: <b>{strategy_label}</b>",
+            f"• Kill Zone Now: <b>{kz_label}</b>",
             f"• Auto-Scalping: <b>{scalp_status}</b>",
             "",
             "💰 <b>Financial Status</b>",

@@ -35,7 +35,7 @@ from agent.backtest.metrics import BacktestMetrics, TradeRecord, calculate_metri
 class BacktestConfig:
     """Configuration for a backtest run."""
     symbol: str = "XAUUSD"
-    initial_balance: float = 50.0
+    initial_balance: float = 100.0
     risk_per_trade_pct: float = 1.0        # % of balance risked per trade
     max_open_trades: int = 1
     spread_pips: float = 2.0               # Simulated spread
@@ -47,11 +47,14 @@ class BacktestConfig:
     use_partial_exits: bool = True         # TP1/TP2/TP3 partial scaling
     primary_tf: str = "1M"                 # "1M" | "15M" | "1H" | "4H"
     strategy_mode: bool = True             # v3: Pure deterministic — no LLM/API calls
+    trading_strategy_mode: str = "SMC"     # "SMC" | "ICT"
     blocked_hours_utc: Optional[list] = None  # Handled in __post_init__
 
     def __post_init__(self):
         if self.blocked_hours_utc is None:
-            self.blocked_hours_utc = [0, 1, 2, 3, 4, 5, 6, 18, 19, 20, 21, 22, 23]  # Trade only London & NY (07:00-17:00 UTC)
+            # 24/5 operation: no blocked hours (trade all sessions)
+            # Kill zone priority is handled in confluence scoring, not by blocking hours
+            self.blocked_hours_utc = []
 
 
 @dataclass
@@ -72,6 +75,14 @@ class OpenTrade:
     confluence_score: float = 0.0
     timestamp: str = ""
     remaining_lots_pct: float = 100.0    # Track partial exits
+    original_sl: float = 0.0             # BUG-02 FIX: preserve original SL for correct TP1 partial record
+    # v2 metadata
+    session: str = ""           # LONDON | NY | ASIA | LONDON_NY_OVERLAP | OFF
+    htf_bias: str = ""          # BULLISH | BEARISH | NEUTRAL
+    atr_at_entry: float = 0.0  # ATR (1H) at entry bar
+    sl_atr_ratio: float = 0.0  # SL distance / ATR
+    is_killzone: bool = False   # Was entry inside a killzone?
+    entry_type: str = ""        # FVG | OB | ICT_ENTRY | HTF_LTF | INDUCEMENT
 
 
 @dataclass
@@ -153,6 +164,16 @@ class BacktestEngine:
         trade_generator = TradeGenerator(min_rr=self.config.min_rr_ratio)
         fib_engine = FibonacciEngine()
 
+        from agent.strategy.router import StrategyRouter
+        from agent.strategy.smc_strategy import SMCStrategy
+        from agent.strategy.ict_strategy import ICTStrategy
+        from agent.strategy.base import StrategyContext
+        from agent.analysis.trade_generator import TradeLevels
+
+        strategy_router = StrategyRouter(self.config.trading_strategy_mode)
+        strategy_router.register(SMCStrategy())
+        strategy_router.register(ICTStrategy())
+
         trades: List[TradeRecord] = []
         open_trades: List[OpenTrade] = []
         current_balance = self.config.initial_balance
@@ -165,6 +186,53 @@ class BacktestEngine:
         rej_validator = 0
         rej_confluence = 0
         last_trade_bar = -self.config.min_bars_between_trades
+
+        # ── Load broker contract spec for accurate PnL calculation ──────────
+        from agent.risk.broker_risk_calculator import broker_risk_calculator, BrokerContractSpec
+        contract = broker_risk_calculator.get_contract(self.config.symbol)
+        if contract is None or not contract.is_valid():
+            # Build a reasonable default spec for common instruments
+            sym_upper = self.config.symbol.upper()
+            if "XAU" in sym_upper or "GOLD" in sym_upper:
+                contract = BrokerContractSpec(
+                    symbol=self.config.symbol,
+                    contract_size=100.0, tick_size=0.01, tick_value=1.0,
+                    volume_step=0.01, volume_min=0.01, volume_max=100.0,
+                    digits=2, point=0.01,
+                )
+            elif "JPY" in sym_upper:
+                contract = BrokerContractSpec(
+                    symbol=self.config.symbol,
+                    contract_size=100000.0, tick_size=0.001, tick_value=1.0,
+                    volume_step=0.01, volume_min=0.01, volume_max=100.0,
+                    digits=3, point=0.001,
+                )
+            elif any(x in sym_upper for x in ["US30", "DE30", "NDX", "SPX", "NAS"]):
+                contract = BrokerContractSpec(
+                    symbol=self.config.symbol,
+                    contract_size=1.0, tick_size=0.01, tick_value=0.01,
+                    volume_step=0.01, volume_min=0.01, volume_max=100.0,
+                    digits=2, point=0.01,
+                )
+            else:  # Standard forex
+                contract = BrokerContractSpec(
+                    symbol=self.config.symbol,
+                    contract_size=100000.0, tick_size=0.00001, tick_value=1.0,
+                    volume_step=0.01, volume_min=0.01, volume_max=100.0,
+                    digits=5, point=0.00001,
+                )
+            if contract.tick_size > 0:
+                contract.value_per_point_per_lot = contract.tick_value / contract.tick_size
+            logger.info(
+                f"Backtest: built default contract for {self.config.symbol} | "
+                f"vpp={contract.value_per_point_per_lot:.4f}"
+            )
+        else:
+            logger.info(
+                f"Backtest: using loaded contract for {self.config.symbol} | "
+                f"vpp={contract.value_per_point_per_lot:.4f}"
+            )
+        contract_vpp = contract.value_per_point_per_lot  # USD per point per lot
 
         # SMC Analysis Caching to speed up 1M bar loops
         smc_cache_4h = {"key": None, "obj": None}
@@ -203,6 +271,12 @@ class BacktestEngine:
         # Activate isolated backtest mode in mt5_feed
         from agent.data.mt5_feed import mt5_feed
         mt5_feed.set_backtest_mode(True, initial_balance=self.config.initial_balance)
+
+        try:
+            from agent.analysis.breakout_retest_engine import breakout_retest_engine
+            breakout_retest_engine.reset()
+        except Exception:
+            pass
 
         logger.info(
             f"Starting backtest: {self.config.symbol} | Primary TF: {primary_name} ({len(df_primary)} bars) | "
@@ -274,20 +348,50 @@ class BacktestEngine:
             for i, ot in enumerate(open_trades):
                 exit_price = None
                 exit_reason = ""
+                partial_pnl = 0.0  # PnL booked for partial exits this bar
 
                 if ot.direction in ("BUY", "LONG"):
                     # Move SL to Breakeven when price reaches +1.0R profit
                     if ot.sl_price < ot.entry_price and current_high >= ot.entry_price + (ot.risk_points * 1.0):
                         ot.sl_price = ot.entry_price
 
+                    # Same-candle ambiguity: if both SL and TP1 hit, SL wins (conservative)
                     if current_low <= ot.sl_price:
                         exit_price = ot.sl_price
                         exit_reason = "SL_HIT" if ot.sl_price < ot.entry_price else "BREAKEVEN"
                     elif current_high >= ot.tp1_price and ot.remaining_lots_pct > 60:
                         if self.config.use_partial_exits and ot.tp2_price > 0:
-                            ot.remaining_lots_pct = 50.0
-                            ot.sl_price = ot.entry_price
-                            continue
+                            # ── Book TP1 partial PnL immediately ─────────────
+                            partial_lots_pct = 50.0
+                            partial_pnl_points = (ot.tp1_price - ot.entry_price) * (partial_lots_pct / 100.0)
+                            partial_pnl = partial_pnl_points * ot.lot_size * contract_vpp
+                            current_balance += partial_pnl
+                            ot.remaining_lots_pct = 100.0 - partial_lots_pct  # = 50%
+                            ot.sl_price = ot.entry_price  # Move SL to BE
+                            trades.append(TradeRecord(
+                                timestamp=str(current_time),
+                                symbol=self.config.symbol,
+                                direction=ot.direction,
+                                entry_price=ot.entry_price,
+                                sl_price=ot.original_sl,  # BUG-02 FIX: original SL, not post-BE value
+                                tp_price=ot.tp1_price,
+                                exit_price=ot.tp1_price,
+                                pnl_usd=partial_pnl,
+                                pnl_r=(partial_pnl_points / ot.risk_points) if ot.risk_points > 0 else 0.0,
+                                regime=ot.regime,
+                                strategy=ot.strategy + "_TP1_PARTIAL",
+                                confluence_score=ot.confluence_score,
+                                holding_bars=bar_idx - ot.entry_bar_idx,
+                                session=ot.session,
+                                exit_reason="TP1_HIT",
+                                entry_type=ot.entry_type,
+                                htf_bias=ot.htf_bias,
+                                atr_at_entry=ot.atr_at_entry,
+                                sl_atr_ratio=ot.sl_atr_ratio,
+                                is_killzone=ot.is_killzone,
+                                risk_points=ot.risk_points,
+                            ))
+                            continue  # Trade still open for TP2
                         else:
                             exit_price = ot.tp1_price
                             exit_reason = "TP1_HIT"
@@ -299,14 +403,43 @@ class BacktestEngine:
                     if ot.sl_price > ot.entry_price and current_low <= ot.entry_price - (ot.risk_points * 1.0):
                         ot.sl_price = ot.entry_price
 
+                    # Same-candle ambiguity: if both SL and TP1 hit, SL wins (conservative)
                     if current_high >= ot.sl_price:
                         exit_price = ot.sl_price
                         exit_reason = "SL_HIT" if ot.sl_price > ot.entry_price else "BREAKEVEN"
                     elif current_low <= ot.tp1_price and ot.remaining_lots_pct > 60:
                         if self.config.use_partial_exits and ot.tp2_price > 0:
-                            ot.remaining_lots_pct = 50.0
-                            ot.sl_price = ot.entry_price
-                            continue
+                            # ── Book TP1 partial PnL immediately ─────────────
+                            partial_lots_pct = 50.0
+                            partial_pnl_points = (ot.entry_price - ot.tp1_price) * (partial_lots_pct / 100.0)
+                            partial_pnl = partial_pnl_points * ot.lot_size * contract_vpp
+                            current_balance += partial_pnl
+                            ot.remaining_lots_pct = 100.0 - partial_lots_pct  # = 50%
+                            ot.sl_price = ot.entry_price  # Move SL to BE
+                            trades.append(TradeRecord(
+                                timestamp=str(current_time),
+                                symbol=self.config.symbol,
+                                direction=ot.direction,
+                                entry_price=ot.entry_price,
+                                sl_price=ot.sl_price,
+                                tp_price=ot.tp1_price,
+                                exit_price=ot.tp1_price,
+                                pnl_usd=partial_pnl,
+                                pnl_r=(partial_pnl_points / ot.risk_points) if ot.risk_points > 0 else 0.0,
+                                regime=ot.regime,
+                                strategy=ot.strategy + "_TP1_PARTIAL",
+                                confluence_score=ot.confluence_score,
+                                holding_bars=bar_idx - ot.entry_bar_idx,
+                                session=ot.session,
+                                exit_reason="TP1_HIT",
+                                entry_type=ot.entry_type,
+                                htf_bias=ot.htf_bias,
+                                atr_at_entry=ot.atr_at_entry,
+                                sl_atr_ratio=ot.sl_atr_ratio,
+                                is_killzone=ot.is_killzone,
+                                risk_points=ot.risk_points,
+                            ))
+                            continue  # Trade still open for TP2
                         else:
                             exit_price = ot.tp1_price
                             exit_reason = "TP1_HIT"
@@ -314,15 +447,19 @@ class BacktestEngine:
                         exit_price = ot.tp2_price
                         exit_reason = "TP2_HIT"
 
-                # Check stall exit (allow trades enough time to develop SMC expansion)
+                # Stall exit: TF-appropriate timeout before closing a stalled trade
+                # 1M: 240 bars = 4 hours (enough time for SMC expansion move)
+                # 15M: 32 bars = 8 hours
+                # 1H: 24 bars = 24 hours
+                # 4H: 10 bars = 40 hours
                 if self.config.primary_tf == "1M":
-                    max_stall_bars = 35
+                    max_stall_bars = 240
                 elif self.config.primary_tf == "15M":
-                    max_stall_bars = 16
+                    max_stall_bars = 32
                 elif self.config.primary_tf == "4H":
-                    max_stall_bars = 8
-                else:
-                    max_stall_bars = 12
+                    max_stall_bars = 10
+                else:  # 1H default
+                    max_stall_bars = 24
 
                 if exit_price is None and (bar_idx - ot.entry_bar_idx >= max_stall_bars):
                     if ot.direction in ("BUY", "LONG"):
@@ -341,8 +478,7 @@ class BacktestEngine:
                         pnl_points = ot.entry_price - exit_price
 
                     pnl_points *= (ot.remaining_lots_pct / 100.0)
-                    point_value = 100.0 if "XAU" in self.config.symbol else 100000.0
-                    pnl_usd = pnl_points * ot.lot_size * point_value
+                    pnl_usd = pnl_points * ot.lot_size * contract_vpp
                     pnl_r = (pnl_points / ot.risk_points) if ot.risk_points > 0 else 0.0
 
                     current_balance += pnl_usd
@@ -360,6 +496,15 @@ class BacktestEngine:
                         strategy=ot.strategy,
                         confluence_score=ot.confluence_score,
                         holding_bars=bar_idx - ot.entry_bar_idx,
+                        # v2 metadata
+                        session=ot.session,
+                        exit_reason=exit_reason,
+                        entry_type=ot.entry_type,
+                        htf_bias=ot.htf_bias,
+                        atr_at_entry=ot.atr_at_entry,
+                        sl_atr_ratio=ot.sl_atr_ratio,
+                        is_killzone=ot.is_killzone,
+                        risk_points=ot.risk_points,
                     ))
                     trades_to_close.append(i)
 
@@ -456,42 +601,65 @@ class BacktestEngine:
                 smc_15m = smc_15m_obj.to_dict() if hasattr(smc_15m_obj, "to_dict") else smc_15m_obj
                 smc_1m = smc_1m_obj.to_dict() if hasattr(smc_1m_obj, "to_dict") else smc_1m_obj
 
-                # Derive session name from trade_hour
-                if 12 <= trade_hour < 16:
-                    current_session = "LONDON_NY_OVERLAP"
+                # BUG-08 FIX: Correct UTC session hours to match ICT killzone definitions
+                # Old (wrong):  Overlap=12-16, NY=16-21, LONDON=7-12, ASIA=0-7
+                # New (correct): London Open KZ=7-10, London mid=10-12,
+                #                London-NY Overlap (NY Open KZ)=12-15,
+                #                NY PM/London Close KZ=15-17, NY afternoon=17-21,
+                #                Asia KZ=1-3, OFF=everything else
+                if 12 <= trade_hour < 15:
+                    current_session = "LONDON_NY_OVERLAP"   # ICT true NY Open killzone window
                 elif 7 <= trade_hour < 12:
-                    current_session = "LONDON"
-                elif 16 <= trade_hour < 21:
-                    current_session = "NY"
-                elif 0 <= trade_hour < 7:
-                    current_session = "ASIA"
+                    current_session = "LONDON"              # London Open + mid-session
+                elif 15 <= trade_hour < 17:
+                    current_session = "NY_PM"               # NY PM / London Close KZ
+                elif 17 <= trade_hour < 21:
+                    current_session = "NY"                  # NY afternoon
+                elif 1 <= trade_hour < 3:
+                    current_session = "ASIA"                # ICT Asia killzone only
+                elif 3 <= trade_hour < 7:
+                    current_session = "PRE_LONDON"          # Low-volume pre-London
                 else:
-                    current_session = "OFF"
+                    current_session = "OFF"                 # 0:00-1:00 and 21:00-24:00
 
                 is_trading_sess = current_session in ("LONDON", "NY", "LONDON_NY_OVERLAP")
 
-                # Fast filter: skip bar if price is not near any POI zone and no recent sweep
-                # This speeds up 1M/15M backtests by 50x
+                # ── O(1) indicator lookups from pre-calculated columns ─────
+                # Must be computed BEFORE near_poi filter (which uses atr_1h)
+                adx_4h     = _clean_val(df_4h_window.iloc[-1].get("adx"), 25.0)
+                adx_1h     = _clean_val(df_1h_window.iloc[-1].get("adx"), 25.0)
+                rsi_4h     = _clean_val(df_4h_window.iloc[-1].get("rsi"), 50.0)
+                rsi_1h     = _clean_val(df_1h_window.iloc[-1].get("rsi"), 50.0)
+                atr_1h     = _clean_val(df_1h_window.iloc[-1].get("atr"), 15.0)  # default 15 pts for Gold
+                bb_width_4h = _clean_val(df_4h_window.iloc[-1].get("bb_width"), 0.05)
+                bb_width_1h = _clean_val(df_1h_window.iloc[-1].get("bb_width"), 0.05)
+
+                # ── Near-POI fast filter (ATR-scaled, Gold-aware) ──────────
+                # Skip bars where price is far from any active OB/FVG zone.
+                # poi_threshold = 2x 1H ATR (typical: $20-50 for Gold)
                 all_active_pois = (
                     smc_1h.get("active_bullish_obs", []) + smc_1h.get("active_bearish_obs", []) +
                     smc_1h.get("active_bullish_fvgs", []) + smc_1h.get("active_bearish_fvgs", []) +
-                    smc_15m.get("active_bullish_obs", []) + smc_15m.get("active_bearish_obs", [])
+                    smc_15m.get("active_bullish_obs", []) + smc_15m.get("active_bearish_obs", []) +
+                    smc_4h.get("active_bullish_obs", []) + smc_4h.get("active_bearish_obs", [])
                 )
-                near_poi = any(abs(current_price - (z.get("midpoint", z.get("top", current_price)))) <= 5.0 for z in all_active_pois)
-                recent_sweeps = smc_1h.get("recent_sweeps", []) + smc_15m.get("recent_sweeps", [])
+                poi_threshold = max(atr_1h * 2.0, 8.0)  # at least $8 window around Gold POI
+                if all_active_pois:
+                    near_poi = any(
+                        abs(current_price - float(
+                            z.get("midpoint", z.get("bottom", z.get("top", current_price)))
+                        )) <= poi_threshold
+                        for z in all_active_pois
+                    )
+                else:
+                    # No POIs catalogued yet (early warmup) — let strategy layer decide
+                    near_poi = True
+
+                recent_sweeps   = smc_1h.get("recent_sweeps", []) + smc_15m.get("recent_sweeps", [])
                 has_recent_sweep = len(recent_sweeps) > 0
 
                 if not near_poi and not has_recent_sweep:
                     continue
-
-                # Fast $O(1)$ indicator lookups from pre-calculated columns
-                adx_4h = _clean_val(df_4h_window.iloc[-1].get("adx"), 25.0)
-                adx_1h = _clean_val(df_1h_window.iloc[-1].get("adx"), 25.0)
-                rsi_4h = _clean_val(df_4h_window.iloc[-1].get("rsi"), 50.0)
-                rsi_1h = _clean_val(df_1h_window.iloc[-1].get("rsi"), 50.0)
-                atr_1h = _clean_val(df_1h_window.iloc[-1].get("atr"), 1.5)
-                bb_width_4h = _clean_val(df_4h_window.iloc[-1].get("bb_width"), 0.05)
-                bb_width_1h = _clean_val(df_1h_window.iloc[-1].get("bb_width"), 0.05)
 
                 # Regime detection
                 regime_result = regime_detector.detect(
@@ -531,42 +699,90 @@ class BacktestEngine:
                     fib_score = 0.0
 
                 # Strategy selection
-                strategy_result = strategy_engine.select(
-                    regime_primary=regime_result.primary,
-                    allowed_strategies=regime_result.allowed_strategies,
-                    smc_4h=smc_4h,
-                    smc_1h=smc_1h,
-                    smc_15m=smc_15m,
-                    smc_1m=smc_1m,
-                    trend_4h=smc_4h.get("trend", "NEUTRAL"),
-                    trend_1h=smc_1h.get("trend", "NEUTRAL"),
-                    trend_15m=smc_15m.get("trend", "NEUTRAL"),
-                    current_price=current_price,
-                    premium_discount_4h=smc_4h.get("premium_discount", "NEUTRAL"),
-                    premium_discount_1h=smc_1h.get("premium_discount", "NEUTRAL"),
-                    fib_score=fib_score,
-                )
+                active_strategy_name = ""
+                if self.config.trading_strategy_mode.upper() == "ICT":
+                    context = StrategyContext(
+                        symbol=self.config.symbol,
+                        current_price=current_price,
+                        smc_4h=smc_4h,
+                        smc_1h=smc_1h,
+                        smc_15m=smc_15m,
+                        smc_1m=smc_1m,
+                        atr_1h=atr_1h,  # BUG-01 FIX: thread real 1H ATR into ICT strategy for SL sizing
+                        adx_1h=adx_1h,
+                        rsi_1h=rsi_1h,
+                        session_data={"current_session": current_session},
+                        current_session=current_session,
+                    )
+                    decision = strategy_router.analyze(context)
 
-                if strategy_result.no_strategy_found or strategy_result.strategy_direction == "NONE":
-                    signals_rejected += 1
-                    rej_strategy += 1
-                    continue
+                    if decision.action == "HOLD" or not decision.is_actionable or not decision.candidates:
+                        signals_rejected += 1
+                        rej_strategy += 1
+                        continue
 
-                direction = strategy_result.strategy_direction
+                    candidate = decision.candidates[0]
+                    direction = candidate.direction
+                    active_strategy_name = candidate.setup_type or "ICT_ENTRY"
 
-                # Trade generation
-                trade_levels = trade_generator.generate(
-                    direction=direction,
-                    current_bid=current_price - (self.config.spread_pips * self._pip_size / 2.0),
-                    current_ask=current_price + (self.config.spread_pips * self._pip_size / 2.0),
-                    atr_1h=atr_1h,
-                    smc_4h=smc_4h,
-                    smc_1h=smc_1h,
-                    smc_15m=smc_15m,
-                )
+                    risk_pts = abs(candidate.entry - candidate.stop_loss)
+                    reward_pts = abs(candidate.take_profit_2 - candidate.entry) if candidate.take_profit_2 else risk_pts * 2.0
+                    trade_levels = TradeLevels(
+                        direction="BUY" if direction in ("BUY", "LONG") else "SELL",
+                        entry=candidate.entry,
+                        sl=candidate.stop_loss,
+                        tp1=candidate.take_profit_1,
+                        tp2=candidate.take_profit_2,
+                        tp3=candidate.take_profit_3 or None,
+                        rr_tp1=(abs(candidate.take_profit_1 - candidate.entry) / risk_pts) if risk_pts > 0 else 0,
+                        rr_tp2=candidate.risk_reward or ((reward_pts / risk_pts) if risk_pts > 0 else 0),
+                        rr_tp3=None,
+                        risk_points=risk_pts,
+                        reward_tp2_points=reward_pts,
+                        sl_basis="ICT_ZONE_SL",
+                        tp_basis="ICT_ZONE_TP",
+                        entry_basis="ICT_ENTRY",
+                        valid=True,
+                    )
+                else:
+                    strategy_result = strategy_engine.select(
+                        regime_primary=regime_result.primary,
+                        allowed_strategies=regime_result.allowed_strategies,
+                        smc_4h=smc_4h,
+                        smc_1h=smc_1h,
+                        smc_15m=smc_15m,
+                        smc_1m=smc_1m,
+                        trend_4h=smc_4h.get("trend", "NEUTRAL"),
+                        trend_1h=smc_1h.get("trend", "NEUTRAL"),
+                        trend_15m=smc_15m.get("trend", "NEUTRAL"),
+                        current_price=current_price,
+                        premium_discount_4h=smc_4h.get("premium_discount", "NEUTRAL"),
+                        premium_discount_1h=smc_1h.get("premium_discount", "NEUTRAL"),
+                        fib_score=fib_score,
+                    )
 
-                # Require valid trade levels, min R:R, and max SL distance scaled to ATR
-                max_risk_points = max(atr_1h * 3.0, 2.0)  # Dynamic: 3x ATR (min 2.0 pts)
+                    if strategy_result.no_strategy_found or strategy_result.strategy_direction == "NONE":
+                        signals_rejected += 1
+                        rej_strategy += 1
+                        continue
+
+                    direction = strategy_result.strategy_direction
+                    active_strategy_name = strategy_result.active_strategy
+
+                    # Trade generation
+                    trade_levels = trade_generator.generate(
+                        direction=direction,
+                        current_bid=current_price - (self.config.spread_pips * self._pip_size / 2.0),
+                        current_ask=current_price + (self.config.spread_pips * self._pip_size / 2.0),
+                        atr_1h=atr_1h,
+                        smc_4h=smc_4h,
+                        smc_1h=smc_1h,
+                        smc_15m=smc_15m,
+                    )
+
+                # Require valid trade levels, min R:R, and reasonable SL distance
+                # Allow up to 5x ATR for ICT-style trades (OB/FVG SL can be wider)
+                max_risk_points = max(atr_1h * 5.0, 3.0)  # Dynamic: 5x ATR (min 3.0 pts)
                 if not trade_levels.valid or trade_levels.rr_tp2 < self.config.min_rr_ratio or trade_levels.risk_points > max_risk_points:
                     signals_rejected += 1
                     rej_generator += 1
@@ -645,13 +861,34 @@ class BacktestEngine:
                     entry -= self.config.spread_pips * self._pip_size
 
                 risk_points = abs(entry - sl)
-                point_value = 100.0 if "XAU" in self.config.symbol else 100000.0
+                # ── BUG FIX: Use contract_vpp instead of hardcoded point_value ─
                 if risk_points > 0:
                     risk_usd = current_balance * (self.config.risk_per_trade_pct / 100.0)
-                    calculated_lot = risk_usd / (risk_points * point_value)
-                    trade_lot = max(0.01, round(calculated_lot, 2))
+                    raw_lot = risk_usd / (risk_points * contract_vpp)
+                    trade_lot = max(contract.volume_min, min(contract.volume_max, round(raw_lot / contract.volume_step) * contract.volume_step))
+                    trade_lot = round(trade_lot, 4)
                 else:
                     trade_lot = self.config.lot_size
+
+                # ── v2: Compute metadata fields for this trade ──────────────
+                _sl_atr_ratio = (risk_points / atr_1h) if atr_1h > 0 else 0.0
+                _htf_bias = smc_4h.get("trend", smc_1h.get("trend", "NEUTRAL"))
+                _is_killzone = current_session in ("LONDON", "NY", "LONDON_NY_OVERLAP")
+
+                # Entry type: derive from strategy name
+                _strat_upper = active_strategy_name.upper()
+                if "FVG" in _strat_upper:
+                    _entry_type = "FVG"
+                elif "OB" in _strat_upper or "ORDER_BLOCK" in _strat_upper:
+                    _entry_type = "OB"
+                elif "ICT" in _strat_upper:
+                    _entry_type = "ICT_ENTRY"
+                elif "INDUCEMENT" in _strat_upper or "SWEEP" in _strat_upper:
+                    _entry_type = "INDUCEMENT"
+                elif "HTF" in _strat_upper:
+                    _entry_type = "HTF_LTF"
+                else:
+                    _entry_type = "SMC_ENTRY"
 
                 open_trades.append(OpenTrade(
                     entry_bar_idx=bar_idx,
@@ -665,9 +902,16 @@ class BacktestEngine:
                     risk_points=risk_points,
                     lot_size=trade_lot,
                     regime=regime_result.primary,
-                    strategy=strategy_result.active_strategy,
+                    strategy=active_strategy_name,
                     confluence_score=conf_result.total_score,
                     timestamp=str(current_time),
+                    # v2 metadata
+                    session=current_session,
+                    htf_bias=_htf_bias,
+                    atr_at_entry=atr_1h,
+                    sl_atr_ratio=round(_sl_atr_ratio, 4),
+                    is_killzone=_is_killzone,
+                    entry_type=_entry_type,
                 ))
 
             except Exception as exc:
@@ -687,8 +931,7 @@ class BacktestEngine:
                     pnl_points = ot.entry_price - last_close
 
                 pnl_points *= (ot.remaining_lots_pct / 100.0)
-                point_value = 100.0 if "XAU" in self.config.symbol else 100000.0
-                pnl_usd = pnl_points * ot.lot_size * point_value
+                pnl_usd = pnl_points * ot.lot_size * contract_vpp
                 pnl_r = (pnl_points / ot.risk_points) if ot.risk_points > 0 else 0.0
 
                 trades.append(TradeRecord(
@@ -705,6 +948,15 @@ class BacktestEngine:
                     strategy=ot.strategy,
                     confluence_score=ot.confluence_score,
                     holding_bars=len(df_primary) - 1 - ot.entry_bar_idx,
+                    # v2 metadata
+                    session=ot.session,
+                    exit_reason="EOD_CLOSE",
+                    entry_type=ot.entry_type,
+                    htf_bias=ot.htf_bias,
+                    atr_at_entry=ot.atr_at_entry,
+                    sl_atr_ratio=ot.sl_atr_ratio,
+                    is_killzone=ot.is_killzone,
+                    risk_points=ot.risk_points,
                 ))
 
         # ── Calculate metrics ──────────────────────────────────────────────
@@ -732,6 +984,25 @@ class BacktestEngine:
             f"LIVE_READY={'TRUE ✅' if is_live_ready else 'FALSE ❌'} | "
             f"{elapsed:.1f}s"
         )
+
+        # ── Print rejection breakdown to stdout so user can debug without logs ──
+        total_evaluated = signals_generated + signals_rejected
+        print(f"\n{'─'*60}")
+        print(f"  SIGNAL PIPELINE BREAKDOWN")
+        print(f"{'─'*60}")
+        print(f"  Bars processed    : {bars_processed:>10,}")
+        print(f"  Bars evaluated    : {total_evaluated:>10,}  (passed warmup + data windows)")
+        print(f"  Signals generated : {signals_generated:>10,}  → became trades")
+        print(f"  Signals rejected  : {signals_rejected:>10,}")
+        if signals_rejected > 0:
+            print(f"    ├ Near-POI filter  : {signals_rejected - rej_regime - rej_strategy - rej_generator - rej_validator - rej_confluence:>8,}  (price not near OB/FVG)")
+            print(f"    ├ Regime gate      : {rej_regime:>8,}  (NO_TRADE regime — low ADX / flat)")
+            print(f"    ├ Strategy gate    : {rej_strategy:>8,}  (ICT/SMC returned HOLD)")
+            print(f"    ├ Generator gate   : {rej_generator:>8,}  (bad R:R or SL too wide)")
+            print(f"    ├ Validator gate   : {rej_validator:>8,}  (spread / session / price check)")
+            print(f"    └ Confluence gate  : {rej_confluence:>8,}  (score < {self.config.confluence_threshold:.2f} threshold)")
+        print(f"  Elapsed           : {elapsed:.1f}s")
+        print(f"{'─'*60}")
 
         return BacktestResult(
             config=self.config,

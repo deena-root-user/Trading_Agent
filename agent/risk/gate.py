@@ -232,12 +232,11 @@ class RiskGate:
 
             if elapsed_sec < cooldown_period:
                 prev_entry = loss_info["entry_price"]
-                better_price = (action == "SELL" and entry > prev_entry + 0.50) or (action == "BUY" and entry < prev_entry - 0.50)
-                if not better_price and confidence < 0.80:
-                    mins_remaining = (cooldown_period - elapsed_sec) / 60.0
+                mins_remaining = (cooldown_period - elapsed_sec) / 60.0
+                if confidence < 0.85:
                     failures.append(
                         f"DIRECTIONAL_LOSS_COOLDOWN: Previous {action} {symbol} lost {elapsed_sec/60:.1f}m ago — "
-                        f"cooldown active for {mins_remaining:.1f}m (requires conf >=80% or better price than {prev_entry:.2f})"
+                        f"cooldown strictly active for {mins_remaining:.1f}m (prev entry: {prev_entry:.2f}, requires conf >=85%)"
                     )
 
         # ── Check 12: Capital Protection USD Risk Guard ──────────────────────
@@ -327,12 +326,16 @@ class RiskGate:
             logger.info(f"Outside enforced trading session hours at {current_time} UTC")
             return False, "Outside Enforced Hours"
 
-        # Default 24/5 trading mode for XAUUSD & Forex: Active all weekday hours
+        # Default 24/5 trading mode for XAUUSD & Forex: Active all weekday hours.
+        # BUG-10 FIX: Check Overlap first (most specific), then individual sessions.
+        # Note: This block intentionally returns True for all hours — it's a
+        # session NAMING mechanism, not a session FILTER. Filtering only happens
+        # when enforce_session_hours=True (above).
         if in_window("12:00", "16:00"):
             return True, "London/NY Overlap"
-        elif in_window("07:00", "16:00"):
+        elif in_window("07:00", "12:00"):
             return True, "London"
-        elif in_window("12:00", "21:00"):
+        elif in_window("16:00", "21:00"):
             return True, "New York"
         elif in_window("22:00", "07:00") or in_window("00:00", "08:00"):
             return True, "Asian"

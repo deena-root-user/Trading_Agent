@@ -29,22 +29,9 @@ from dashboard.backend.database import init_db, get_db, AsyncSessionLocal
 from dashboard.backend.models import Trade, LLMDecision, EquitySnapshot, AgentConfig
 from dashboard.backend.ws_manager import ws_manager
 
-app = FastAPI(
-    title="PAXIS Trading Agent Dashboard",
-    version="1.0.0",
-    description="Autonomous LLM Forex Trading Agent — Control Panel",
-)
+# BUG-17 FIX: Define lifespan before app creation
+from contextlib import asynccontextmanager
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ── Startup ───────────────────────────────────────────────────────────────────
 
 async def equity_logger_loop():
     logger.info("Starting background equity logger loop...")
@@ -67,20 +54,17 @@ async def equity_logger_loop():
                     )
                     db.add(snapshot)
                     await db.commit()
-                    # broadcast
                     await ws_manager.broadcast_equity(snapshot.to_dict())
                     logger.debug(f"[EQUITY LOGGER] Saved and broadcasted snapshot: balance={balance}, equity={equity}")
         except Exception as e:
             logger.error(f"Error in equity logger loop: {e}")
 
-@app.on_event("startup")
-async def on_startup():
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan: startup and shutdown logic."""
     await init_db()
-    
-    # Connect MT5 feed (or simulator) for this backend process
     mt5_feed.connect()
-    
-    # Start equity logging task
     asyncio.create_task(equity_logger_loop())
     
     # Load settings from agent_config table into memory on startup
@@ -125,6 +109,26 @@ async def on_startup():
                         pass
     except Exception as e:
         logger.error(f"Error loading config on startup: {e}")
+
+    yield  # Application is running
+    logger.info("Dashboard backend shutting down")
+
+
+app = FastAPI(
+    title="PAXIS Trading Agent Dashboard",
+    version="1.0.0",
+    description="Autonomous LLM Forex Trading Agent — Control Panel",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 
 

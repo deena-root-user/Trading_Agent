@@ -155,6 +155,10 @@ class ConfluenceEngine:
 
         # Fibonacci (from FibonacciEngine)
         fib_score: float = 0.0,
+
+        # Strategy & Breakout Setup context
+        setup_type: str = "SMC",
+        breakout_quality_score: float = 0.0,
     ) -> ConfluenceResult:
         """
         Compute the confluence score. Returns ConfluenceResult.
@@ -181,6 +185,15 @@ class ConfluenceEngine:
         expected_trend = "BULLISH" if is_bull else "BEARISH"
 
         factors: List[ConfluenceFactor] = []
+
+        if setup_type == "BREAKOUT_RETEST" and breakout_quality_score > 0:
+            factors.append(ConfluenceFactor(
+                category="Breakout Quality",
+                name="BREAKOUT_RETEST_ENGINE_SCORE",
+                score=breakout_quality_score,
+                weight=0.25,
+                detail=f"Breakout engine composite quality score: {breakout_quality_score:.3f}",
+            ))
 
         # ── Category 1: Structure Quality (weight=25%) ─────────────────────────
         trend_4h = smc_4h.get("trend", "NEUTRAL")

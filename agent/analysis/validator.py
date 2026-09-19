@@ -132,10 +132,21 @@ class TradeValidator:
         proposed_tp: float = 0.0,
         min_rr_ratio: float = 2.0,
         fib_score: float = 0.0,
+        # Trade levels (pre-computed by TradeGenerator)
+        entry: float = 0.0,
+        sl: float = 0.0,
+        tp1: float = 0.0,
+        tp2: float = 0.0,
+        rr_tp2: float = 0.0,
+        risk_points: float = 0.0,
+
+        # Strategy Context
+        setup_type: str = "SMC",
+
+        # BUG-2 FIX: Kill zone relaxed zone checking
+        relaxed_zone_check: bool = False,  # True = in kill zone, wider thresholds
     ) -> ValidatorResult:
-        """
-        Run all 18 checks and return ValidatorResult.
-        """
+        """Run all 18 checks and return ValidatorResult."""
         smc_4h = smc_4h or {}
         smc_1h = smc_1h or {}
         smc_15m = smc_15m or {}
@@ -143,6 +154,7 @@ class TradeValidator:
 
         is_bull = direction == "LONG"
         checks: List[ValidatorCheck] = []
+        mandatory_failures: List[str] = []
 
         # ── Check 1: HTF Trend Alignment ──────────────────────────────────────
         trend_4h = smc_4h.get("trend", "NEUTRAL")
@@ -175,11 +187,11 @@ class TradeValidator:
         fvg_key = "active_bullish_fvgs" if is_bull else "active_bearish_fvgs"
         has_obs = len(smc_1h.get(ob_key, [])) > 0 or len(smc_4h.get(ob_key, [])) > 0 or len(smc_15m.get(ob_key, [])) > 0
         has_fvgs = len(smc_1h.get(fvg_key, [])) > 0 or len(smc_15m.get(fvg_key, [])) > 0 or len(smc_4h.get(fvg_key, [])) > 0
-        has_poi = has_obs or has_fvgs
+        has_poi = (has_obs or has_fvgs) if setup_type != "BREAKOUT_RETEST" else True
         checks.append(ValidatorCheck(
             check_id=3, name="ACTIVE_POI_EXISTS",
             passed=has_poi, weight=2.0, mandatory=False,
-            detail=f"OBs: {has_obs}, FVGs: {has_fvgs}",
+            detail=f"OBs: {has_obs}, FVGs: {has_fvgs}" if setup_type != "BREAKOUT_RETEST" else "Breakout level acts as POI",
         ))
 
         # ── Check 4: Price Approaching POI ───────────────────────────────────
@@ -198,19 +210,22 @@ class TradeValidator:
         else:
             poi_tolerance = self.POI_TOLERANCE_POINTS
 
-        price_at_poi = (
-            any(
-                ob.get("price_is_inside", False) or
-                ob.get("distance_points", 999) <= poi_tolerance
-                for ob in all_obs
+        if setup_type == "BREAKOUT_RETEST":
+            price_at_poi = True
+        else:
+            price_at_poi = (
+                any(
+                    ob.get("price_is_inside", False) or
+                    ob.get("distance_points", 999) <= poi_tolerance
+                    for ob in all_obs
+                )
+                or any(
+                    fvg.get("price_is_inside", False) or
+                    fvg.get("distance_points", 999) <= poi_tolerance
+                    for fvg in all_fvgs
+                )
+                or not has_poi
             )
-            or any(
-                fvg.get("price_is_inside", False) or
-                fvg.get("distance_points", 999) <= poi_tolerance
-                for fvg in all_fvgs
-            )
-            or not has_poi
-        )
         checks.append(ValidatorCheck(
             check_id=4, name="PRICE_AT_POI",
             passed=price_at_poi, weight=2.5, mandatory=False,
@@ -366,14 +381,89 @@ class TradeValidator:
             detail=f"Fib score={fib_val:.2f}",
         ))
 
-        # ── Check 18: Swing Range Context ─────────────────────────────────────
-        # Entry should be in the valid part of the swing (not in premium for longs)
+        # ── Check 18: Swing Range Context (Graduated Scoring) ─────────────────
+        # v2: Instead of a binary mandatory block, use graduated scoring.
+        # Near-equilibrium: pass (0.40-0.60 of swing). Moderate zone: penalize.
+        # Deep zone: hard-blocked via separate Check 21 below.
+        # BUG-2 FIX: relaxed_zone_check (kill zone) widens acceptable range to 30-70%
         pd_1h = smc_1h.get("premium_discount", "NEUTRAL")
-        swing_ok = pd_1h in (valid_pd, "EQUILIBRIUM", "NEUTRAL")
+        swing_high_1h = smc_1h.get("active_swing_high")
+        swing_low_1h = smc_1h.get("active_swing_low")
+
+        # Calculate actual price position percentage in swing range
+        swing_pct = 0.50  # default neutral
+        if swing_high_1h and swing_low_1h and swing_high_1h > swing_low_1h:
+            swing_range_val = swing_high_1h - swing_low_1h
+            if swing_range_val > 0:
+                swing_pct = (current_price - swing_low_1h) / swing_range_val
+                swing_pct = max(0.0, min(1.0, swing_pct))
+
+        # Thresholds: normal mode vs kill zone relaxed mode
+        # relaxed = 30/70 thresholds (kill zones: high momentum, wider range OK)
+        # strict  = 45/55 thresholds (standard structural retracement)
+        buy_ideal  = 0.30 if relaxed_zone_check else 0.45
+        buy_ok     = 0.70 if relaxed_zone_check else 0.60
+        sell_ok    = 0.30 if relaxed_zone_check else 0.40
+        sell_ideal = 0.70 if relaxed_zone_check else 0.55
+
+        if is_bull:
+            if swing_pct <= buy_ideal:
+                swing_ok = True   # Ideal: buying in discount
+            elif swing_pct <= buy_ok:
+                swing_ok = True   # Acceptable: near/at equilibrium
+            else:
+                swing_ok = False  # Penalized: buying in premium
+        else:
+            if swing_pct >= sell_ideal:
+                swing_ok = True   # Ideal: selling in premium
+            elif swing_pct >= sell_ok:
+                swing_ok = True   # Acceptable: near/at equilibrium
+            else:
+                swing_ok = False  # Penalized: selling in discount
+
         checks.append(ValidatorCheck(
             check_id=18, name="SWING_RANGE_CONTEXT",
-            passed=swing_ok, weight=1.0, mandatory=False,
-            detail=f"1H zone={pd_1h}, looking for {valid_pd}",
+            passed=swing_ok, weight=2.5, mandatory=False,
+            detail=(
+                f"1H zone={pd_1h}, swing_pct={swing_pct:.1%}, "
+                f"relaxed={relaxed_zone_check}, looking for {valid_pd}"
+            ),
+        ))
+
+        # ── Check 21: DEEP_ZONE_VIOLATION (Mandatory — extreme zones only) ────
+        # BUG-2 FIX: kill zone relaxed threshold: 85%/15% instead of 75%/25%
+        # This allows momentum plays inside kill zones even at slightly premium/discount zones
+        deep_bull_threshold = 0.85 if relaxed_zone_check else 0.75
+        deep_bear_threshold = 0.15 if relaxed_zone_check else 0.25
+        if is_bull:
+            deep_zone_violation = swing_pct >= deep_bull_threshold  # Buying in deep premium
+        else:
+            deep_zone_violation = swing_pct <= deep_bear_threshold  # Selling in deep discount
+        checks.append(ValidatorCheck(
+            check_id=21, name="DEEP_ZONE_VIOLATION",
+            passed=not deep_zone_violation, weight=3.0, mandatory=True,
+            detail=(
+                f"swing_pct={swing_pct:.1%}, threshold={'85%' if relaxed_zone_check else '75%'}/{'15%' if relaxed_zone_check else '25%'}, "
+                f"{'DEEP PREMIUM buy' if is_bull and deep_zone_violation else 'DEEP DISCOUNT sell' if deep_zone_violation else 'Zone OK'} "
+                f"({'kill zone relaxed' if relaxed_zone_check else 'strict'})"
+            ),
+        ))
+
+        # ── Check 20: NO_ACTIVE_OPPOSING_IMPULSE (Mandatory Protection) ────────
+        opposing_disp = "BULLISH" if direction in ("SHORT", "SELL") else "BEARISH"
+        disp_1m = smc_1m.get("displacement_direction", "NONE")
+        disp_15m = smc_15m.get("displacement_direction", "NONE")
+        active_impulse_opposing = (
+            (disp_1m == opposing_disp and smc_1m.get("displacement_detected", False))
+            or (disp_15m == opposing_disp and smc_15m.get("displacement_detected", False))
+            or smc_1m.get("active_impulse_against", False)
+        )
+        # Only pass if there is NO active opposing impulse/displacement
+        no_opposing_impulse = not active_impulse_opposing
+        checks.append(ValidatorCheck(
+            check_id=20, name="NO_ACTIVE_OPPOSING_IMPULSE",
+            passed=no_opposing_impulse, weight=3.0, mandatory=True,
+            detail=f"Opposing displacement active ({opposing_disp}) on M1/M15" if active_impulse_opposing else "No opposing displacement",
         ))
 
         # ── Compute Score ─────────────────────────────────────────────────────

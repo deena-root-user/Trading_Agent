@@ -32,6 +32,7 @@ class OrderTracker:
     def __init__(self):
         self._known_positions: Dict[int, dict] = {}  # ticket → position dict
         self._failed_modifications: Dict[int, tuple] = {}  # ticket → (timestamp, target_sl)
+        self._failed_closes: Dict[int, float] = {}  # ticket → timestamp of last failed close attempt
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._on_close_callbacks: List[Callable] = []
@@ -69,7 +70,11 @@ class OrderTracker:
         try:
             from agent.data.mt5_feed import mt5_feed
             current = mt5_feed.get_open_positions()
-        except Exception:
+        except Exception as exc:
+            # BUG-03 FIX: Log failure instead of silently returning.
+            # Silent failures here mean position monitoring stops entirely,
+            # missing SL/TP hits, basket protection, and trade close callbacks.
+            logger.warning(f"OrderTracker: Failed to fetch positions — monitoring paused this cycle: {exc}")
             return
 
         current_tickets = {p["ticket"]: p for p in current}
@@ -86,6 +91,10 @@ class OrderTracker:
         closed_tickets = set(self._known_positions) - set(current_tickets)
         for ticket in closed_tickets:
             closed_snapshot = self._known_positions.pop(ticket)
+            if hasattr(self, "_failed_modifications"):
+                self._failed_modifications.pop(ticket, None)
+            if hasattr(self, "_failed_closes"):
+                self._failed_closes.pop(ticket, None)
             real_closed = mt5_feed.get_closed_trade_details(ticket, closed_snapshot)
             self._handle_close(real_closed)
 
@@ -95,9 +104,13 @@ class OrderTracker:
                 # Update floating figures in local memory
                 self._known_positions[ticket]["profit"] = pos["profit"]
                 self._known_positions[ticket]["price_current"] = pos["price_current"]
+                if pos.get("sl", 0.0) > 0:
+                    self._known_positions[ticket]["sl"] = pos["sl"]
+                if pos.get("tp", 0.0) > 0:
+                    self._known_positions[ticket]["tp"] = pos["tp"]
                 
                 # Apply dynamic modifications
-                self._manage_active_risk(pos)
+                self._manage_active_risk(self._known_positions[ticket])
 
         # 4. Smart Basket Floating PnL Protection (Soft + Hard Targets)
         if current_tickets:
@@ -105,13 +118,14 @@ class OrderTracker:
 
             # Hard target — close everything immediately
             if settings.basket_hard_target_usd > 0 and total_floating_pnl >= settings.basket_hard_target_usd:
+                if self._are_all_closes_suppressed(current_tickets):
+                    return
                 logger.info(
                     f"🎯 BASKET HARD TARGET! Total PnL={total_floating_pnl:+.2f} USD "
                     f">= {settings.basket_hard_target_usd:.2f} USD — Closing ALL {len(current_tickets)} positions"
                 )
-                from agent.execution.mt5_bridge import mt5_bridge
                 for t_id, pos in list(current_tickets.items()):
-                    mt5_bridge.close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
+                    self._attempt_close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
                 return
 
             # Soft target — tighten SLs to lock profit (don't close, let runners run)
@@ -145,48 +159,94 @@ class OrderTracker:
             # User target PnL cut-off — close everything when total open PnL reaches target_open_pnl_cutoff or basket_target_profit_usd
             cutoff_target = settings.target_open_pnl_cutoff or settings.basket_target_profit_usd
             if cutoff_target > 0 and total_floating_pnl >= cutoff_target:
+                if self._are_all_closes_suppressed(current_tickets):
+                    return
                 logger.info(
                     f"🎉 TOTAL OPEN PnL TARGET REACHED! PnL={total_floating_pnl:+.2f} USD "
                     f">= cutoff target {cutoff_target:.2f} USD — Closing ALL {len(current_tickets)} positions to secure profit!"
                 )
-                from agent.execution.mt5_bridge import mt5_bridge
                 for t_id, pos in list(current_tickets.items()):
-                    mt5_bridge.close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
+                    self._attempt_close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
                 return
 
-            # ── 1. Soft Loss Cutoff ($10 - $12 USD) with Pullback Probability Evaluation ──
+            # ── CAPITAL PROTECTION HIERARCHY ──────────────────────────────────────
+            # Priority (highest first):
+            #   1. ABSOLUTE SUPERVISORY CAP  (1.5× soft limit)  — UNCONDITIONAL close
+            #   2. LEGACY HARD BACKSTOP      (basket_sl_loss_usd) — UNCONDITIONAL close
+            #   3. SOFT LOSS + PULLBACK EVAL (basket_soft_loss_cutoff_usd) — conditional
+            #
+            # Pullback probability is an OPTIMISTIC PREDICTION MODEL.
+            # It is NOT a capital-protection authority.
+            # It may provide information but may NEVER override HARD CAPITAL PROTECTION.
+            # ────────────────────────────────────────────────────────────────────────
+
             soft_loss_limit = getattr(settings, "basket_soft_loss_cutoff_usd", 10.0)
             hard_loss_limit = settings.basket_sl_loss_usd or 20.0
+            # NEW: Absolute supervisory cap — pullback probability CANNOT override this
+            absolute_supervisory_cap = soft_loss_limit * 1.5  # $10 * 1.5 = $15
 
-            if soft_loss_limit > 0 and total_floating_pnl <= -soft_loss_limit and total_floating_pnl > -hard_loss_limit:
+            # ── TIER 1: ABSOLUTE SUPERVISORY CAP — unconditional close ────────
+            # At or above the absolute supervisory cap, NO MODEL/SCORE/PREDICTION
+            # can delay closure. Capital protection overrides prediction.
+            if absolute_supervisory_cap > 0 and total_floating_pnl <= -absolute_supervisory_cap:
+                if self._are_all_closes_suppressed(current_tickets):
+                    return
+                logger.critical(
+                    f"🛑🛑 ABSOLUTE SUPERVISORY CAPITAL PROTECTION! PnL={total_floating_pnl:+.2f} USD "
+                    f"<= -{absolute_supervisory_cap:.2f} USD (1.5× soft limit) — "
+                    f"UNCONDITIONAL CLOSE ALL {len(current_tickets)} positions! "
+                    f"No pullback probability or score can override this limit."
+                )
+                for t_id, pos in list(current_tickets.items()):
+                    self._attempt_close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
+                return
+
+            # ── TIER 2: LEGACY HARD BACKSTOP — unconditional close ────────────
+            # Retained as secondary defense if supervisory cap somehow fails.
+            if hard_loss_limit > 0 and total_floating_pnl <= -hard_loss_limit:
+                if self._are_all_closes_suppressed(current_tickets):
+                    return
+                logger.critical(
+                    f"🛑 BASKET HARD MAX LOSS (LEGACY BACKSTOP)! Total PnL={total_floating_pnl:+.2f} USD "
+                    f"<= -{hard_loss_limit:.2f} USD — Closing ALL {len(current_tickets)} positions. "
+                    f"WARNING: Supervisory cap at ${absolute_supervisory_cap:.2f} should have caught this first!"
+                )
+                for t_id, pos in list(current_tickets.items()):
+                    self._attempt_close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
+                return
+
+            # ── TIER 3: SOFT LOSS + PULLBACK EVALUATION ───────────────────────
+            # Pullback probability may ONLY operate in the NARROW band between
+            # soft limit and absolute supervisory cap. It cannot hold beyond the cap.
+            if soft_loss_limit > 0 and total_floating_pnl <= -soft_loss_limit:
+                remaining_buffer = absolute_supervisory_cap - abs(total_floating_pnl)
                 high_prob, score, reason = self._evaluate_pullback_probability(current_tickets)
-                if high_prob:
+
+                # Extra safety: if less than 20% buffer remaining before absolute cap,
+                # pullback probability is NOT allowed to hold.
+                buffer_pct = remaining_buffer / absolute_supervisory_cap if absolute_supervisory_cap > 0 else 0
+                pullback_allowed_to_hold = high_prob and buffer_pct > 0.20
+
+                if pullback_allowed_to_hold:
                     logger.info(
                         f"⏳ SOFT LOSS CUTOFF REACHED! PnL={total_floating_pnl:+.2f} USD "
                         f"(threshold -${soft_loss_limit:.2f} USD) | High Pullback Prob (Score: {score}/100 | {reason}) "
-                        f"— HOLDING {len(current_tickets)} positions for pullback recovery"
+                        f"| Buffer to absolute cap: ${remaining_buffer:.2f} ({buffer_pct:.0%}) "
+                        f"— HOLDING {len(current_tickets)} positions (pullback evaluation active)"
                     )
                 else:
+                    close_reason = "Low pullback probability" if not high_prob else f"Insufficient buffer ({buffer_pct:.0%}) to absolute cap"
+                    if self._are_all_closes_suppressed(current_tickets):
+                        return
                     logger.info(
                         f"✂️ SOFT LOSS CUTOFF TRIGGERED! PnL={total_floating_pnl:+.2f} USD "
-                        f"(threshold -${soft_loss_limit:.2f} USD) | Low Pullback Prob (Score: {score}/100 | {reason}) "
+                        f"(threshold -${soft_loss_limit:.2f} USD) | {close_reason} (Score: {score}/100 | {reason}) "
                         f"— CLOSING ALL {len(current_tickets)} positions to cap loss!"
                     )
-                    from agent.execution.mt5_bridge import mt5_bridge
                     for t_id, pos in list(current_tickets.items()):
-                        mt5_bridge.close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
+                        self._attempt_close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
                     return
 
-            # ── 2. Hard Max Loss Cutoff — close everything unconditionally ──
-            if hard_loss_limit > 0 and total_floating_pnl <= -hard_loss_limit:
-                logger.info(
-                    f"🛑 BASKET HARD MAX LOSS! Total PnL={total_floating_pnl:+.2f} USD "
-                    f"<= -{hard_loss_limit:.2f} USD — Closing ALL {len(current_tickets)} positions"
-                )
-                from agent.execution.mt5_bridge import mt5_bridge
-                for t_id, pos in list(current_tickets.items()):
-                    mt5_bridge.close_position(t_id, pos["symbol"], pos["type"], pos["volume"])
-                return
 
         # 5. Protect Trade 1 when Trade 2 is active
         if settings.protect_trade1_on_trade2 and len(current_tickets) >= 2:
@@ -243,14 +303,12 @@ class OrderTracker:
 
             if floating_pnl >= scaled_tp_usd:
                 logger.info(f"Scalp target profit reached: PnL={floating_pnl:.2f} USD >= target={scaled_tp_usd:.2f} USD. Closing position.")
-                from agent.execution.mt5_bridge import mt5_bridge
-                mt5_bridge.close_position(ticket, symbol, action, volume)
+                self._attempt_close_position(ticket, symbol, action, volume)
                 return
 
             if floating_pnl <= -scaled_sl_usd:
                 logger.info(f"Scalp stop loss reached: PnL={floating_pnl:.2f} USD <= stop={-scaled_sl_usd:.2f} USD. Closing position.")
-                from agent.execution.mt5_bridge import mt5_bridge
-                mt5_bridge.close_position(ticket, symbol, action, volume)
+                self._attempt_close_position(ticket, symbol, action, volume)
                 return
 
         # ── Progressive Profit-Locking Breakeven ──────────────────────────────
@@ -278,6 +336,7 @@ class OrderTracker:
 
             if action == "BUY" and initial_risk > 0:
                 risk_dist = initial_risk
+                matched_step = False
                 for trigger_r, lock_r in steps:
                     trigger_price = entry + (risk_dist * trigger_r)
                     if current >= trigger_price:
@@ -289,10 +348,23 @@ class OrderTracker:
                                 f"SL: {sl:.{digits}f} → {target_sl:.{digits}f}"
                             )
                             self._modify_sl(ticket, symbol, target_sl, tp)
+                        matched_step = True
                         break  # Highest matching step wins
+
+                # Fallback: For Gold, if profit >= 2.0 points (+2.00 USD) and SL is still below breakeven
+                if not matched_step and is_gold and current >= (entry + 2.0):
+                    be_sl = round(entry + point_buffer, digits)
+                    if be_sl > sl:
+                        logger.info(
+                            f"📈 Gold Point BE: BUY {symbol} #{ticket} | "
+                            f"profit reached +{(current - entry):.2f} pts (>= 2.0 pts) | "
+                            f"SL: {sl:.{digits}f} → {be_sl:.{digits}f}"
+                        )
+                        self._modify_sl(ticket, symbol, be_sl, tp)
 
             elif action == "SELL" and initial_risk > 0:
                 risk_dist = initial_risk
+                matched_step = False
                 for trigger_r, lock_r in steps:
                     trigger_price = entry - (risk_dist * trigger_r)
                     if current <= trigger_price:
@@ -304,7 +376,19 @@ class OrderTracker:
                                 f"SL: {sl:.{digits}f} → {target_sl:.{digits}f}"
                             )
                             self._modify_sl(ticket, symbol, target_sl, tp)
+                        matched_step = True
                         break
+
+                # Fallback: For Gold, if profit >= 2.0 points (+2.00 USD) and SL is still above breakeven
+                if not matched_step and is_gold and current <= (entry - 2.0):
+                    be_sl = round(entry - point_buffer, digits)
+                    if be_sl < sl or sl == 0:
+                        logger.info(
+                            f"📈 Gold Point BE: SELL {symbol} #{ticket} | "
+                            f"profit reached +{(entry - current):.2f} pts (>= 2.0 pts) | "
+                            f"SL: {sl:.{digits}f} → {be_sl:.{digits}f}"
+                        )
+                        self._modify_sl(ticket, symbol, be_sl, tp)
 
         # ── Legacy Single-Step Breakeven (fallback when progressive_breakeven=False) ──
         elif not settings.progressive_breakeven and settings.auto_breakeven_ratio > 0 and sl > 0 and tp > 0:
@@ -457,10 +541,37 @@ class OrderTracker:
             logger.error(f"ATR calculation failed for {symbol}: {exc}")
             return 0.0
 
+    def _are_all_closes_suppressed(self, tickets_dict: dict, window: float = 120.0) -> bool:
+        """Returns True if all positions in tickets_dict recently failed to close and are within suppression window."""
+        now = time.time()
+        if not hasattr(self, "_failed_closes"):
+            self._failed_closes = {}
+        return bool(tickets_dict) and all(
+            (now - self._failed_closes.get(t_id, 0.0)) < window
+            for t_id in tickets_dict
+        )
+
+    def _attempt_close_position(self, ticket: int, symbol: str, action: str, volume: float, window: float = 120.0) -> bool:
+        """Attempts to close a position, recording timestamp if it fails to suppress retries for `window` seconds."""
+        now = time.time()
+        if not hasattr(self, "_failed_closes"):
+            self._failed_closes = {}
+        last_fail = self._failed_closes.get(ticket, 0.0)
+        if now - last_fail < window:
+            return False
+        from agent.execution.mt5_bridge import mt5_bridge
+        success = mt5_bridge.close_position(ticket, symbol, action, volume)
+        if success:
+            self._failed_closes.pop(ticket, None)
+        else:
+            self._failed_closes[ticket] = now
+        return success
+
     def _modify_sl(self, ticket: int, symbol: str, new_sl: float, tp: float) -> bool:
         """Send SL modification order request to MT5."""
         # Suppress repeated failed modification requests within 30 seconds
-        if hasattr(self, "_failed_modifications") and ticket in self._failed_modifications:
+        # BUG-12 FIX: Removed redundant hasattr — _failed_modifications is always initialized in __init__
+        if ticket in self._failed_modifications:
             last_fail_time, last_fail_sl = self._failed_modifications[ticket]
             if time.time() - last_fail_time < 30 and abs(new_sl - last_fail_sl) < 0.01:
                 return False
@@ -525,6 +636,20 @@ class OrderTracker:
                         if not hasattr(self, "_failed_modifications"):
                             self._failed_modifications = {}
                         self._failed_modifications[ticket] = (time.time(), new_sl)
+                        return False
+                    elif "10027" in response.text or "autotrading disabled" in response.text.lower():
+                        # AutoTrading disabled by client — persistent broker error, no point retrying
+                        # Suppress for 120s to avoid log spam
+                        if not hasattr(self, "_failed_modifications"):
+                            self._failed_modifications = {}
+                        last_fail = self._failed_modifications.get(ticket)
+                        if last_fail and (time.time() - last_fail[0]) < 120:
+                            return False  # Silently skip — already logged
+                        self._failed_modifications[ticket] = (time.time(), new_sl)
+                        logger.warning(
+                            f"⚠️ Position #{ticket}: AutoTrading disabled by client (10027). "
+                            f"Enable AutoTrading in MT5 terminal. Suppressing retries for 120s."
+                        )
                         return False
                     logger.error(f"Failed to modify remote position {ticket}: {response.text}")
                     return False
@@ -592,21 +717,9 @@ class OrderTracker:
             except Exception as exc:
                 logger.error(f"Close callback error: {exc}")
 
-        # Send Telegram deal closure alert
-        try:
-            from agent.notify.telegram_bot import telegram_bot
-            telegram_bot.send_trade_close(
-                symbol=symbol,
-                action=action,
-                pnl=pnl,
-                outcome=outcome,
-                ticket=ticket,
-                entry=entry,
-                exit_price=exit_px,
-                lot_size=vol,
-            )
-        except Exception as exc:
-            logger.error(f"Error sending Telegram trade close alert: {exc}")
+        # BUG-04 FIX: Removed duplicate Telegram notification here.
+        # PaxisAgent._handle_trade_close callback (registered via register_close_callback)
+        # already sends the Telegram close alert with full context.
 
         # Activate Directional Loss Cooldown Shield on loss
         if pnl < 0:

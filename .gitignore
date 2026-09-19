@@ -16,6 +16,8 @@ __pycache__/
 *.sqlite3
 *.lock
 backtest_results.json
+backtest_results_*.json
+*.zip
 
 # Environment & Secrets
 .env

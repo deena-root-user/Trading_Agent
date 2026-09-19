@@ -134,6 +134,7 @@ class SMCData:
     displacement_detected: bool = False
     displacement_direction: str = "NONE"  # "BULLISH" | "BEARISH" | "NONE"
     displacement_magnitude_atr: float = 0.0
+    displacement_bars_ago: int = 999       # How many bars since last displacement (999 = no displacement)
 
     # Inducement
     inducement_swept: bool = False
@@ -316,6 +317,7 @@ class SMCData:
             "displacement_detected": self.displacement_detected,
             "displacement_direction": self.displacement_direction,
             "displacement_magnitude_atr": round(self.displacement_magnitude_atr, 2),
+            "displacement_bars_ago": self.displacement_bars_ago,
 
             # Inducement
             "inducement_swept": self.inducement_swept,
@@ -787,6 +789,7 @@ class SMCEngine:
             displacement_detected=displacement_detected,
             displacement_direction=displacement_direction,
             displacement_magnitude_atr=displacement_magnitude_atr,
+            displacement_bars_ago=((n - 1 - last_displacement_bar) if last_displacement_bar >= 0 else 999),
             inducement_swept=inducement_swept,
             hh_count=hh_count,
             hl_count=hl_count,

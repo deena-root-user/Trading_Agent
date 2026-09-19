@@ -29,27 +29,31 @@ from loguru import logger
 
 REGIME_STRATEGY_MAP: Dict[str, Dict[str, List[str]]] = {
     "TRENDING_STRONG": {
-        "allowed": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY", "HTF_LTF_SMC", "SMC_INDUCEMENT_SWEEP", "SWEEP_REVERSAL"],
+        "allowed": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY", "HTF_LTF_SMC", "SMC_INDUCEMENT_SWEEP", "SWEEP_REVERSAL", "BREAKOUT_RETEST"],
         "forbidden": ["CHOCH_REVERSAL", "MEAN_REVERSION", "RANGE_REVERSAL", "EQUILIBRIUM_TRADE", "OB_REACTION"],
     },
     "TRENDING_MODERATE": {
-        "allowed": ["BOS_CONTINUATION", "HTF_LTF_SMC", "SMC_INDUCEMENT_SWEEP", "SWEEP_REVERSAL", "DISPLACEMENT_ENTRY"],
+        "allowed": ["BOS_CONTINUATION", "HTF_LTF_SMC", "SMC_INDUCEMENT_SWEEP", "SWEEP_REVERSAL", "DISPLACEMENT_ENTRY", "BREAKOUT_RETEST"],
         "forbidden": ["CHOCH_REVERSAL", "RANGE_REVERSAL", "OB_REACTION"],
     },
     "PULLBACK_RETRACEMENT": {
-        "allowed": ["SMC_INDUCEMENT_SWEEP", "HTF_LTF_SMC", "SWEEP_REVERSAL"],
+        "allowed": ["SMC_INDUCEMENT_SWEEP", "HTF_LTF_SMC", "SWEEP_REVERSAL", "BREAKOUT_RETEST"],
         "forbidden": ["CHOCH_REVERSAL", "FVG_PULLBACK", "FVG_RETRACEMENT", "OB_REACTION"],
     },
     "RANGING": {
         "allowed": ["RANGE_REVERSAL", "EQUILIBRIUM_TRADE"],
-        "forbidden": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY"],
+        "forbidden": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY", "BREAKOUT_RETEST"],
     },
     "COMPRESSING": {
-        "allowed": ["SWEEP_REVERSAL", "RANGE_REVERSAL"],
+        "allowed": ["SWEEP_REVERSAL", "RANGE_REVERSAL", "BREAKOUT_RETEST"],
         "forbidden": ["OB_REACTION"],
     },
+    "EXHAUSTION": {
+        "allowed": ["SWEEP_REVERSAL", "CHOCH_REVERSAL", "SMC_INDUCEMENT_SWEEP", "DEEP_ZONE_REVERSAL"],
+        "forbidden": ["BOS_CONTINUATION", "DISPLACEMENT_ENTRY", "HTF_LTF_SMC"],
+    },
     "VOLATILE_EXPANSION": {
-        "allowed": ["DISPLACEMENT_ENTRY", "SWEEP_REVERSAL"],
+        "allowed": ["DISPLACEMENT_ENTRY", "SWEEP_REVERSAL", "BREAKOUT_RETEST"],
         "forbidden": [],
     },
     "UNCERTAIN": {
@@ -218,6 +222,13 @@ class MarketRegimeDetector:
             regime_change_risk = "HIGH"
             reasons.append(f"ADX 4H={adx_4h:.1f} (very strong) + volume ratio={volume_ratio:.1f}x — extreme volatility")
 
+        # Priority 1.5: Exhaustion at Extreme Liquidity Bounds
+        elif premium_discount_1h in ("DEEP_DISCOUNT", "DEEP_PREMIUM") or premium_discount_4h in ("DEEP_DISCOUNT", "DEEP_PREMIUM"):
+            primary = "EXHAUSTION"
+            confidence = 0.88
+            regime_change_risk = "HIGH"
+            reasons.append(f"Price in extreme liquidity zone (1H={premium_discount_1h}, 4H={premium_discount_4h}) — trend continuation forbidden, reversal priority")
+
         # Priority 2: Compressing (BB squeeze + low ADX)
         elif (bb_squeeze_4h or bb_squeeze_1h) and adx_ranging:
             primary = "COMPRESSING"
@@ -243,6 +254,14 @@ class MarketRegimeDetector:
                 f"ADX 4H={adx_4h:.1f} (strong) + structure alignment={structure_alignment_score:.2f} + "
                 f"trend={'BULLISH' if trend_votes_bull > trend_votes_bear else 'BEARISH'}"
             )
+            # Confidence floor: a "strong trend" with < 40% confidence is a contradiction
+            # (happens when ADX ~20 and SMC alignment inflates the regime label)
+            if confidence < 0.40:
+                primary = "TRENDING_MODERATE"
+                regime_change_risk = "MEDIUM"
+                reasons.append(
+                    f"Downgraded from TRENDING_STRONG: confidence {confidence:.2f} < 0.40 threshold"
+                )
 
         # Priority 4: Moderate Trend
         elif adx_trending_4h and structure_alignment_score >= 0.50:

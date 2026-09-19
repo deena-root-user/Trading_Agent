@@ -5,7 +5,7 @@ Computes RSI, MACD, Bollinger Bands, EMA, ATR using pandas-ta.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 import pandas as pd
 from loguru import logger
@@ -261,6 +261,125 @@ class IndicatorCalculator:
             return 0.01
         return 0.0001
 
+    def _calculate_numpy_fallback(
+        self, df: pd.DataFrame, symbol: str, timeframe: str
+    ) -> "IndicatorSnapshot":
+        """
+        Numpy-native fallback when pandas_ta is not installed.
+        Computes ATR, EMA, RSI, pivot points, and SMC indicators without pandas_ta.
+        """
+        import numpy as np
+        snap = IndicatorSnapshot(symbol=symbol, timeframe=timeframe)
+        latest = df.iloc[-1]
+        snap.timestamp = latest["time"]
+        snap.close = float(latest["close"])
+        snap.open_ = float(latest["open"])
+        snap.high = float(latest["high"])
+        snap.low = float(latest["low"])
+        snap.volume = float(latest.get("volume", 0))
+
+        close = df["close"].values.astype(float)
+        high = df["high"].values.astype(float)
+        low = df["low"].values.astype(float)
+        pip = self._pip_size(symbol)
+
+        # ATR (Wilder)
+        try:
+            n = len(close)
+            tr = np.zeros(n)
+            tr[0] = high[0] - low[0]
+            for i in range(1, n):
+                tr[i] = max(high[i] - low[i], abs(high[i] - close[i-1]), abs(low[i] - close[i-1]))
+            atr = float(np.mean(tr[-14:])) if n >= 14 else float(np.mean(tr))
+            snap.atr = round(atr, 6)
+            snap.atr_pips = round(atr / pip, 1) if pip > 0 else 0.0
+        except Exception:
+            pass
+
+        # EMA (exponential)
+        def _ema(series: np.ndarray, period: int) -> float:
+            if len(series) < period:
+                return float(series[-1]) if len(series) > 0 else 0.0
+            k = 2.0 / (period + 1)
+            ema = float(series[0])
+            for v in series[1:]:
+                ema = v * k + ema * (1 - k)
+            return round(ema, 5)
+
+        if len(close) >= 5:
+            snap.ema5 = _ema(close, 5)
+        if len(close) >= 9:
+            snap.ema9 = _ema(close, 9)
+        if len(close) >= 20:
+            snap.ema20 = _ema(close, 20)
+        if len(close) >= 21:
+            snap.ema21 = _ema(close, 21)
+        if len(close) >= 50:
+            snap.ema50 = _ema(close, 50)
+
+        if snap.ema5 > snap.ema20 > snap.ema50:
+            snap.ema_trend = "BULLISH"
+        elif snap.ema5 < snap.ema20 < snap.ema50:
+            snap.ema_trend = "BEARISH"
+
+        # RSI (Wilder smoothing)
+        try:
+            if len(close) >= 15:
+                deltas = np.diff(close)
+                gains = np.where(deltas > 0, deltas, 0.0)
+                losses = np.where(deltas < 0, -deltas, 0.0)
+                avg_gain = float(np.mean(gains[:14]))
+                avg_loss = float(np.mean(losses[:14]))
+                for i in range(14, len(deltas)):
+                    avg_gain = (avg_gain * 13 + gains[i]) / 14
+                    avg_loss = (avg_loss * 13 + losses[i]) / 14
+                if avg_loss > 0:
+                    rs = avg_gain / avg_loss
+                    snap.rsi = round(100.0 - 100.0 / (1 + rs), 2)
+                else:
+                    snap.rsi = 100.0
+        except Exception:
+            pass
+
+        # Realized volatility
+        try:
+            if len(close) >= 21:
+                log_ret = np.log(close[-21:] / np.roll(close[-21:], 1))[1:]
+                snap.realized_vol_20 = float(np.std(log_ret) * np.sqrt(252))
+        except Exception:
+            pass
+
+        # Pivot points
+        if len(df) >= 2:
+            ph = float(df["high"].iloc[-2])
+            pl = float(df["low"].iloc[-2])
+            pc = float(df["close"].iloc[-2])
+            snap.pivot = (ph + pl + pc) / 3.0
+            snap.r1 = 2 * snap.pivot - pl
+            snap.s1 = 2 * snap.pivot - ph
+            snap.r2 = snap.pivot + (ph - pl)
+            snap.s2 = snap.pivot - (ph - pl)
+
+        # Volume
+        if "volume" in df.columns:
+            snap.volume_avg = float(df["volume"].tail(20).mean())
+            snap.volume_ratio = snap.volume / snap.volume_avg if snap.volume_avg > 0 else 1.0
+
+        # SMC engine (independent of pandas_ta)
+        try:
+            from agent.data.smc_engine import smc_engine
+            smc_res = smc_engine.analyze(df, symbol=symbol, timeframe=timeframe)
+            if smc_res:
+                snap.smc_full_dict = smc_res.to_dict()
+        except Exception:
+            pass
+
+        logger.debug(
+            f"Indicators (numpy fallback) ✓ {symbol} {timeframe} | "
+            f"RSI={snap.rsi:.1f} | ATR={snap.atr:.4f} | EMA_trend={snap.ema_trend}"
+        )
+        return snap
+
     def calculate(
         self,
         df: pd.DataFrame,
@@ -275,6 +394,10 @@ class IndicatorCalculator:
         if df is None or len(df) < 15:
             logger.warning(f"Insufficient candle data for indicators ({symbol}): {len(df) if df is not None else 0} rows")
             return None
+
+        # ── Guard: pandas-ta not available → numpy fallback ───────────────────
+        if not TA_AVAILABLE:
+            return self._calculate_numpy_fallback(df, symbol, timeframe)
 
         try:
             snap = IndicatorSnapshot(symbol=symbol, timeframe=timeframe)
@@ -291,9 +414,13 @@ class IndicatorCalculator:
             pip = self._pip_size(symbol)
 
             # ── RSI ───────────────────────────────────────────────────────────
-            rsi_series = ta.rsi(df["close"], length=14)
-            if rsi_series is not None and not rsi_series.empty:
-                snap.rsi = float(rsi_series.iloc[-1])
+            rsi_series = None
+            try:
+                rsi_series = ta.rsi(df["close"], length=14)
+                if rsi_series is not None and not rsi_series.empty:
+                    snap.rsi = float(rsi_series.iloc[-1])
+            except Exception:
+                pass
 
             # ── MACD ──────────────────────────────────────────────────────────
             macd_df = ta.macd(df["close"], fast=12, slow=26, signal=9)

@@ -89,6 +89,8 @@ class TradeGenerator:
         smc_15m: Optional[dict] = None,
         session: Optional[dict] = None,
         account_balance: Optional[float] = None,
+        setup_type: str = "SMC",
+        breakout_level: Optional[float] = None,
     ) -> TradeLevels:
         smc_4h = smc_4h or {}
         smc_1h = smc_1h or {}
@@ -142,31 +144,41 @@ class TradeGenerator:
         zones_15m_fvg = smc_15m.get(fvg_key, [])
         zones_1h_fvg = smc_1h.get(fvg_key, [])
 
-        # ── Entry Price (50% Equilibrium Limit Entry) ────────────────────────
-        entry, entry_basis = self._compute_entry(
-            is_bull=is_bull,
-            current_price=current_price,
-            current_bid=current_bid,
-            current_ask=current_ask,
-            zones_ob=zones_1h_ob + zones_4h_ob,
-            zones_fvg=zones_15m_fvg + zones_1h_fvg,
-            atr=atr,
-        )
+        if setup_type == "BREAKOUT_RETEST":
+            ref_lvl = breakout_level if breakout_level is not None else current_price
+            entry = current_price if abs(current_price - ref_lvl) <= atr * 0.5 else ref_lvl
+            entry_basis = f"Breakout Retest entry at level {ref_lvl:.2f}"
+            sl_dist = max(atr * 0.5, 1.5)
+            if max_capital_sl_dist is not None:
+                sl_dist = min(sl_dist, max_capital_sl_dist)
+            sl = (entry - sl_dist) if is_bull else (entry + sl_dist)
+            sl_basis = f"Breakout Retest SL ({sl_dist:.2f} pts from entry)"
+        else:
+            # ── Entry Price (50% Equilibrium Limit Entry) ────────────────────────
+            entry, entry_basis = self._compute_entry(
+                is_bull=is_bull,
+                current_price=current_price,
+                current_bid=current_bid,
+                current_ask=current_ask,
+                zones_ob=zones_1h_ob + zones_4h_ob,
+                zones_fvg=zones_15m_fvg + zones_1h_fvg,
+                atr=atr,
+            )
 
-        # ── Stop Loss (Below/Above Zone Boundary) ────────────────────────────
-        sl, sl_basis = self._compute_sl(
-            is_bull=is_bull,
-            entry=entry,
-            current_price=current_price,
-            zones_ob=zones_1h_ob + zones_4h_ob,
-            zones_fvg=zones_15m_fvg + zones_1h_fvg,
-            swing_low=smc_1h.get("active_swing_low"),
-            swing_high=smc_1h.get("active_swing_high"),
-            swing_low_4h=smc_4h.get("active_swing_low"),
-            swing_high_4h=smc_4h.get("active_swing_high"),
-            atr=atr,
-            max_capital_sl_dist=max_capital_sl_dist,
-        )
+            # ── Stop Loss (Below/Above Zone Boundary) ────────────────────────────
+            sl, sl_basis = self._compute_sl(
+                is_bull=is_bull,
+                entry=entry,
+                current_price=current_price,
+                zones_ob=zones_1h_ob + zones_4h_ob,
+                zones_fvg=zones_15m_fvg + zones_1h_fvg,
+                swing_low=smc_1h.get("active_swing_low"),
+                swing_high=smc_1h.get("active_swing_high"),
+                swing_low_4h=smc_4h.get("active_swing_low"),
+                swing_high_4h=smc_4h.get("active_swing_high"),
+                atr=atr,
+                max_capital_sl_dist=max_capital_sl_dist,
+            )
 
         # ── Take Profit Levels ────────────────────────────────────────────────
         tp1, tp2, tp3, tp_basis = self._compute_tp(

@@ -188,6 +188,31 @@ def test_progressive_breakeven_steps(tracker):
     tracker._modify_sl.assert_called_once_with(777, "XAUUSD", 2402.70, 2430.00)
 
 
+def test_early_breakeven_gold_and_low_r(tracker):
+    """Verify early breakeven triggers at +0.25R and via Gold point-profit fallback (+3.09 pts)."""
+    settings.progressive_breakeven = True
+    settings.scalping_mode = False
+    settings.trailing_stop_atr_multiplier = 0.0
+    settings.profit_lock_steps = "0.25:0.0,0.5:0.1,1.0:0.25,1.5:0.5,2.0:1.0,2.5:1.5"
+
+    # Trade matching user's screenshot: SELL XAUUSD, entry 4272.85, SL 4280.62 (risk 7.77), current 4269.76 (+3.09 pts profit = +0.397R)
+    pos = {
+        "ticket": 2407364394,
+        "symbol": "XAUUSD.m",
+        "type": "SELL",
+        "price_open": 4272.85,
+        "price_current": 4269.76,
+        "sl": 4280.62,
+        "tp": 4266.71,
+        "profit": 3.09,
+    }
+
+    # At +0.397R / +3.09 pts (4269.76), triggers +0.25R step -> SL moves to 4272.85 - 0.20 = 4272.65
+    tracker._manage_active_risk(pos)
+    tracker._modify_sl.assert_called_once_with(2407364394, "XAUUSD.m", 4272.65, 4266.71)
+
+
+
 def test_basket_soft_vs_hard_targets(tracker):
     """Verify soft target tightens SLs while hard target closes all positions."""
     settings.basket_soft_target_usd = 15.0
@@ -224,6 +249,28 @@ def test_basket_soft_loss_cutoff_pullback_evaluation(tracker):
         with patch.object(tracker, "_evaluate_pullback_probability", return_value=(False, 20, "No support")):
             tracker._check_positions()
             mock_close.assert_called_once_with(301, "XAUUSD", "SELL", 0.01)
+
+
+def test_order_tracker_close_suppression_10027(tracker):
+    """Verify that failed position close (e.g. 10027 AutoTrading disabled) suppresses repeat close calls and logs."""
+    settings.basket_soft_loss_cutoff_usd = 10.0
+
+    p1 = {"ticket": 9991, "symbol": "XAUUSD", "type": "BUY", "volume": 0.01, "profit": -16.0, "price_open": 2400.0, "price_current": 2384.0, "sl": 2370.0, "tp": 2430.0}
+
+    with patch("agent.data.mt5_feed.mt5_feed.get_open_positions", return_value=[p1]), \
+         patch("agent.execution.mt5_bridge.mt5_bridge.close_position", return_value=False) as mock_close:
+
+        # First tick: close is attempted, returns False (failed due to 10027)
+        tracker._check_positions()
+        assert mock_close.call_count == 1
+
+        # Second tick (5s later): close attempt suppressed within 120s window
+        tracker._check_positions()
+        assert mock_close.call_count == 1  # Not called again!
+
+        # Verify _failed_closes tracks ticket timestamp
+        assert 9991 in tracker._failed_closes
+
 
 
 

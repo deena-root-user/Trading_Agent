@@ -1003,10 +1003,7 @@ class MT5Feed:
                     data = resp.json()
                     deals = data if isinstance(data, list) else data.get("deals", [data])
                     if deals:
-                        total_pnl = sum(
-                            float(d.get("profit", 0)) + float(d.get("swap", 0)) + float(d.get("commission", 0)) + float(d.get("fee", 0))
-                            for d in deals
-                        )
+                        total_pnl = sum(float(d.get("profit", 0)) for d in deals)
                         out_deals = [d for d in deals if str(d.get("entry", "")).upper() in ("1", "OUT", "ENTRY_OUT")]
                         close_price = float(out_deals[-1]["price"]) if out_deals and "price" in out_deals[-1] else float(deals[-1].get("price", base.get("price_current", 0.0)))
                         base["close_price"] = close_price
@@ -1022,7 +1019,7 @@ class MT5Feed:
             try:
                 deals = mt5.history_deals_get(position=ticket)
                 if deals:
-                    total_pnl = sum(d.profit + d.swap + d.commission + getattr(d, "fee", 0.0) for d in deals)
+                    total_pnl = sum(d.profit for d in deals)
                     out_deals = [d for d in deals if d.entry == getattr(mt5, "DEAL_ENTRY_OUT", 1)]
                     close_price = out_deals[-1].price if out_deals else deals[-1].price
                     base["close_price"] = close_price

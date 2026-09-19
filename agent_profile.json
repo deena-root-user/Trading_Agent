@@ -1,0 +1,160 @@
+{
+  "generated_at": "2026-09-18T19:49:07.293095",
+  "strategy_mode": "ICT",
+  "overall": {
+    "total": 85,
+    "winners": 58,
+    "losers": 7,
+    "win_rate": 68.24,
+    "profit_factor": 19.855,
+    "net_pnl": 569.1903
+  },
+  "best_sessions": [
+    "LONDON",
+    "NY",
+    "ASIA"
+  ],
+  "worst_sessions": [],
+  "session_performance": {
+    "LONDON": {
+      "total": 23,
+      "wins": 18,
+      "losses": 2,
+      "win_rate": 78.3,
+      "pnl": 132.5751
+    },
+    "LONDON_NY_OVERLAP": {
+      "total": 15,
+      "wins": 7,
+      "losses": 2,
+      "win_rate": 46.7,
+      "pnl": 37.6596
+    },
+    "NY": {
+      "total": 23,
+      "wins": 18,
+      "losses": 1,
+      "win_rate": 78.3,
+      "pnl": 282.8034
+    },
+    "ASIA": {
+      "total": 4,
+      "wins": 4,
+      "losses": 0,
+      "win_rate": 100.0,
+      "pnl": 29.6434
+    },
+    "OFF": {
+      "total": 12,
+      "wins": 6,
+      "losses": 1,
+      "win_rate": 50.0,
+      "pnl": 39.8082
+    }
+  },
+  "best_hours_utc": [
+    1,
+    2,
+    3,
+    11,
+    13,
+    16,
+    17,
+    18,
+    19,
+    20
+  ],
+  "avoid_hours_utc": [
+    15
+  ],
+  "recommended_confluence_threshold": 0.8,
+  "best_confluence_band": "0.80-0.85",
+  "strategy_rankings": {
+    "ICT_LONG_ENTRY": {
+      "total": 34,
+      "wins": "13",
+      "win_rate": 38.2,
+      "pnl": 155.5231
+    },
+    "ICT_LONG_ENTRY_TP1_PARTIAL": {
+      "total": 18,
+      "wins": "18",
+      "win_rate": 100.0,
+      "pnl": 146.2097
+    },
+    "ICT_SHORT_ENTRY_TP1_PARTIAL": {
+      "total": 14,
+      "wins": "14",
+      "win_rate": 100.0,
+      "pnl": 140.95
+    },
+    "ICT_SHORT_ENTRY": {
+      "total": 19,
+      "wins": "13",
+      "win_rate": 68.4,
+      "pnl": 126.5075
+    }
+  },
+  "loss_root_causes": {
+    "QUICK_REVERSAL (\u22642 bars)": {
+      "count": 6,
+      "pct": 85.7,
+      "total_loss": -27.1681
+    },
+    "LOW_CONFLUENCE (< 0.70)": {
+      "count": 2,
+      "pct": 28.6,
+      "total_loss": -12.4376
+    },
+    "DEAD_SESSION (ASIA/OFF)": {
+      "count": 1,
+      "pct": 14.3,
+      "total_loss": -9.4176
+    }
+  },
+  "primary_loss_cause": "QUICK_REVERSAL (\u22642 bars)",
+  "sl_atr_analysis": {
+    "0.20-0.40 (tight)": {
+      "total": 11,
+      "wins": 4,
+      "win_rate": 36.4,
+      "loser_pct": 27.3,
+      "avg_pnl": 0.1798
+    },
+    "0.40-0.60 (moderate)": {
+      "total": 6,
+      "wins": 4,
+      "win_rate": 66.7,
+      "loser_pct": 0.0,
+      "avg_pnl": 1.9933
+    },
+    "0.60-0.80 (normal)": {
+      "total": 14,
+      "wins": 9,
+      "win_rate": 64.3,
+      "loser_pct": 21.4,
+      "avg_pnl": 9.3843
+    },
+    "0.80-1.0 (full ATR)": {
+      "total": 6,
+      "wins": 3,
+      "win_rate": 50.0,
+      "loser_pct": 16.7,
+      "avg_pnl": 1.7979
+    },
+    "1.0-2.0 (wide)": {
+      "total": 47,
+      "wins": 38,
+      "win_rate": 80.9,
+      "loser_pct": 0.0,
+      "avg_pnl": 8.789
+    },
+    ">2.0 (very wide)": {
+      "total": 1,
+      "wins": 0,
+      "win_rate": 0.0,
+      "loser_pct": 0.0,
+      "avg_pnl": 0.0
+    }
+  }
+}

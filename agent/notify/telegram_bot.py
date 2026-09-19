@@ -32,6 +32,7 @@ class PaxisBot:
         self._app = None
         self._thread: Optional[threading.Thread] = None
         self._agent_ref = None  # Set by main.py to allow /kill /pause
+        self._sent_close_tickets: set = set()
 
     def set_agent(self, agent) -> None:
         """Give the bot a reference to the main agent for control commands."""
@@ -59,18 +60,6 @@ class PaxisBot:
         except Exception as exc:
             logger.error(f"Safe reply failed: {exc}")
 
-    # ── Sync send helpers (thread-safe) ───────────────────────────────────────
-
-    def _run_coro(self, coro) -> None:
-        """Run a coroutine from sync context in the bot's event loop."""
-        if not TELEGRAM_AVAILABLE or not settings.telegram_bot_token:
-            return
-        try:
-            loop = asyncio.new_event_loop()
-            loop.run_until_complete(coro)
-            loop.close()
-        except Exception as exc:
-            logger.error(f"Telegram send error: {exc}")
 
     def _send(self, text: str, parse_mode: str = "HTML", reply_markup: Optional[dict] = None) -> None:
         if not TELEGRAM_AVAILABLE or not settings.telegram_bot_token or not settings.telegram_chat_id:
@@ -111,8 +100,16 @@ class PaxisBot:
     ) -> None:
         prefix = "🔵 [DRY RUN] " if dry_run else ""
         emoji = "🟢" if action == "BUY" else "🔴"
-        pip_sl = abs(entry - sl) / 0.0001
-        pip_tp = abs(tp - entry) / 0.0001
+        # BUG-08 FIX: Use instrument-aware pip size instead of hardcoded 0.0001
+        sym_upper = symbol.upper()
+        if any(x in sym_upper for x in ["XAU", "GOLD"]):
+            pip_divisor = 0.01  # Gold: 1 pip = 0.01
+        elif "JPY" in sym_upper:
+            pip_divisor = 0.01  # JPY pairs: 1 pip = 0.01
+        else:
+            pip_divisor = 0.0001  # Standard forex: 1 pip = 0.0001
+        pip_sl = abs(entry - sl) / pip_divisor
+        pip_tp = abs(tp - entry) / pip_divisor
 
         lines = [
             f"{prefix}{emoji} <b>{action} {symbol}</b>",
@@ -151,6 +148,17 @@ class PaxisBot:
         exit_price: Optional[float] = None,
         lot_size: Optional[float] = None,
     ) -> None:
+        if ticket and ticket in self._sent_close_tickets:
+            logger.debug(f"Skipping duplicate Telegram trade close alert for ticket #{ticket}")
+            return
+        if ticket:
+            self._sent_close_tickets.add(ticket)
+            # BUG-13 FIX: FIFO eviction instead of full clear to prevent
+            # post-clear duplicate notifications
+            if len(self._sent_close_tickets) > 500:
+                sorted_tickets = sorted(self._sent_close_tickets)
+                for old_ticket in sorted_tickets[:250]:
+                    self._sent_close_tickets.discard(old_ticket)
         sym_clean = symbol.split(".")[0].upper()
         emoji = "✅" if pnl > 0 else "❌"
         ticket_str = f" (#{ticket})" if ticket else ""
@@ -335,9 +343,13 @@ class PaxisBot:
                 app.add_handler(CommandHandler("modify", self._cmd_modify))
                 app.add_handler(CommandHandler("kill",   self._cmd_kill))
                 app.add_handler(CommandHandler("pause",  self._cmd_pause))
+                app.add_handler(CommandHandler("resume", self._cmd_resume))  # BUG-02 FIX: was missing
                 app.add_handler(CommandHandler("upcoming", self._cmd_upcoming))
                 app.add_handler(CommandHandler("pnl",    self._cmd_pnl))
                 app.add_handler(CommandHandler("lot",    self._cmd_lot))
+                app.add_handler(CommandHandler("whynotrade", self._cmd_whynotrade))
+                app.add_handler(CommandHandler("whytrade",   self._cmd_whytrade))
+                app.add_handler(CommandHandler("watchbreakout", self._cmd_watchbreakout))
                 app.add_handler(CallbackQueryHandler(self._cmd_callback_query))
                 app.add_error_handler(self._handle_error)
 
@@ -408,7 +420,9 @@ class PaxisBot:
             "/summary - Detailed system summary (balance, positions, etc)\n"
             "/status - Alias for /summary\n"
             "/pnl - Show today's P&L summary\n"
-            "/lot - View current default lot size\n\n"
+            "/lot - View current default lot size\n"
+            "/whynotrade - Show why the agent is NOT trading right now\n"
+            "/whytrade - Show details about the last trade taken\n\n"
             "<b>💼 Order Management</b>\n"
             "/buy <code>&lt;symbol&gt; [volume] [sl_pips] [tp_pips]</code>\n"
             "• Examples:\n"
@@ -746,6 +760,124 @@ class PaxisBot:
             "You can update this dynamically via the web dashboard.",
             parse_mode="HTML"
         )
+
+    @authenticated
+    async def _cmd_whynotrade(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Show diagnostic trace explaining why the agent is currently NOT trading."""
+        try:
+            from agent.analysis.strategy_engine import StrategyEngine
+            diag = StrategyEngine.get_last_diagnostic()
+
+            if not diag:
+                await self._safe_reply(
+                    update,
+                    "🔍 <b>Why No Trade?</b>\n\n"
+                    "No diagnostic trace available yet.\n"
+                    "The agent hasn't completed a strategy evaluation cycle yet.\n"
+                    "Wait for the next cycle to run.",
+                    parse_mode="HTML"
+                )
+                return
+
+            lines = [
+                "🔍 <b>PAXIS — Why No Trade Diagnostic</b>",
+                "═" * 32,
+            ]
+
+            block_reason = diag.get("block_reason", "Unknown")
+            lines.append(f"❌ <b>Block Reason:</b> {block_reason}")
+            lines.append("")
+
+            # Market structure state
+            lines.append("<b>📊 Market Structure:</b>")
+            lines.append(f"• 4H Trend: <code>{diag.get('trend_4h', 'N/A')}</code>")
+            lines.append(f"• 1H Trend: <code>{diag.get('trend_1h', 'N/A')}</code>")
+            lines.append(f"• 15M Trend: <code>{diag.get('trend_15m', 'N/A')}</code>")
+            lines.append(f"• P/D 4H: <code>{diag.get('premium_discount_4h', 'N/A')}</code>")
+            lines.append(f"• P/D 1H: <code>{diag.get('premium_discount_1h', 'N/A')}</code>")
+            lines.append(f"• Swing Position: <code>{diag.get('swing_pct', 'N/A')}</code>")
+            lines.append("")
+
+            # Deep zone info
+            deep_blocked = diag.get("deep_zone_blocked")
+            if deep_blocked:
+                lines.append(f"⚠️ <b>Deep Zone Blocked:</b> <code>{deep_blocked}</code>")
+
+            # Counter-trend state
+            lines.append("")
+            lines.append("<b>🔄 Counter-Trend Checks:</b>")
+            lines.append(f"• Counter BUY unlocked: <code>{diag.get('counter_buy_unlocked', 'N/A')}</code>")
+            lines.append(f"• Counter SELL unlocked: <code>{diag.get('counter_sell_unlocked', 'N/A')}</code>")
+            lines.append(f"• LTF Sweep: <code>{diag.get('has_ltf_sweep', 'N/A')}</code>")
+            lines.append(f"• 1H Bull CHoCH: <code>{diag.get('has_1h_bull_choch', 'N/A')}</code>")
+            lines.append(f"• 1H Bear CHoCH: <code>{diag.get('has_1h_bear_choch', 'N/A')}</code>")
+            lines.append(f"• RSI 1H: <code>{diag.get('rsi_1h', 'N/A')}</code>")
+            lines.append("")
+
+            best_score = diag.get("best_score")
+            best_strat = diag.get("best_strategy")
+            if best_score is not None:
+                lines.append(f"🏆 Best candidate: <code>{best_strat}</code> score=<code>{best_score:.2f}</code> (need ≥0.55)")
+
+            strategy_mode = getattr(settings, "trading_strategy_mode", "SMC")
+            lines.append(f"\n⚙️ Strategy Mode: <b>{strategy_mode}</b>")
+
+            await self._safe_reply(update, "\n".join(lines), parse_mode="HTML")
+
+        except Exception as exc:
+            logger.error(f"Error in /whynotrade command: {exc}")
+            await self._safe_reply(update, f"⚠️ Error: {exc}")
+
+    @authenticated
+    async def _cmd_whytrade(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Show details about the last trade taken."""
+        try:
+            if self._agent_ref:
+                recent = getattr(self._agent_ref, '_recent_trades', [])
+                if recent:
+                    last = recent[-1]
+                    lines = [
+                        "📈 <b>Last Trade Details</b>",
+                        f"• Symbol: <code>{last.get('symbol', 'N/A')}</code>",
+                        f"• Direction: <code>{last.get('action', 'N/A')}</code>",
+                        f"• Entry: <code>{last.get('entry', 0):.2f}</code>",
+                        f"• SL: <code>{last.get('sl', 0):.2f}</code>",
+                        f"• TP: <code>{last.get('tp', 0):.2f}</code>",
+                        f"• Strategy: <code>{last.get('strategy', 'N/A')}</code>",
+                        f"• Confidence: <code>{last.get('confidence', 0):.0%}</code>",
+                        f"• Reasoning: {last.get('reasoning', 'N/A')}",
+                    ]
+                    await self._safe_reply(update, "\n".join(lines), parse_mode="HTML")
+                else:
+                    await self._safe_reply(update, "📈 No trades have been taken yet this session.")
+            else:
+                await self._safe_reply(update, "⚠️ Agent reference not available.")
+        except Exception as exc:
+            logger.error(f"Error in /whytrade command: {exc}")
+            await self._safe_reply(update, f"⚠️ Error: {exc}")
+
+    @authenticated
+    async def _cmd_watchbreakout(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+        """Show active breakout/retest setup watch status."""
+        try:
+            from agent.analysis.breakout_retest_engine import breakout_retest_engine
+            active = breakout_retest_engine.active_setups
+            if not active:
+                await self._safe_reply(update, "👀 <b>Breakout Watch:</b> No active breakout setups being tracked.", parse_mode="HTML")
+                return
+
+            lines = ["👀 <b>PAXIS — Breakout Setup Watch</b>", "═" * 32]
+            for sid, setup in active.items():
+                state_str = setup.state.value if hasattr(setup.state, 'value') else str(setup.state)
+                lines.append(
+                    f"• <b>{setup.symbol}</b> ({setup.direction}) | Level: <code>{setup.level.price:.2f}</code>\n"
+                    f"  State: <code>{state_str}</code> | Disp: <code>{setup.displacement_strength:.2f}</code> | "
+                    f"  Age: <code>{setup.bars_elapsed}</code> bars"
+                )
+            await self._safe_reply(update, "\n".join(lines), parse_mode="HTML")
+        except Exception as exc:
+            logger.error(f"Error in /watchbreakout command: {exc}")
+            await self._safe_reply(update, f"⚠️ Error: {exc}")
 
 
 # Singleton

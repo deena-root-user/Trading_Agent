@@ -59,6 +59,47 @@ class Settings(BaseSettings):
 
     # ── Strategy Mode (Pure Deterministic — No LLM/API) ──────────────────────
     strategy_mode: bool = Field(False, description="When True, skip ALL LLM/Ollama/API calls — use only deterministic strategy conditions (regime + strategy + validator + confluence). Best for backtesting and pure mechanical execution.")
+    trading_strategy_mode: str = Field("SMC,ICT,SCALP", description="Comma-separated trading strategy modes. Options: SMC, ICT, SCALP, BREAKOUT. Enables parallel execution of all listed modes.")
+
+    # ── Trading Environment ────────────────────────────────────────────────────
+    trading_environment: str = Field("PAPER", description="DEVELOPMENT | PAPER | LIVE. Controls risk bypass behavior — LIVE environment disables all risk gate bypasses.")
+
+    # ── Parallel Strategy Execution ────────────────────────────────────────────
+    enable_parallel_strategies: bool = Field(True, description="Run SMC, ICT, BREAKOUT and SCALP strategies simultaneously rather than serially.")
+    parallel_strategy_timeout_seconds: float = Field(8.0, description="Max seconds to wait for each parallel strategy before skipping.")
+    signal_dedup_window_seconds: float = Field(300.0, description="Suppress duplicate signals on same symbol+direction within this window.")
+
+    # ── Dual Entry Mode: Structural ────────────────────────────────────────────
+    structural_mode_enabled: bool = Field(True, description="Enable structural (retracement-into-POI) entry mode.")
+    structural_poi_tolerance_enabled: bool = Field(True, description="Enable configurable tolerance so price need not hit the exact center of the POI.")
+    structural_poi_tolerance_atr: float = Field(1.5, description="POI tolerance in ATR multiples. Price within ±(ATR × this) of POI center is considered 'in zone'.")
+    structural_require_retracement: bool = Field(True, description="Require price to retrace into POI before entry.")
+    structural_require_candle_confirmation: bool = Field(True, description="Require a candle close inside zone for confirmation.")
+
+    # ── Dual Entry Mode: Breakout ──────────────────────────────────────────────
+    breakout_mode_enabled: bool = Field(True, description="Enable breakout (BOS + displacement) entry mode. Complements structural mode.")
+    breakout_entry_type: str = Field("confirmation", description="Breakout entry type: 'close' | 'confirmation' | 'micro_retest'. Default: confirmation.")
+    breakout_require_close_confirmation: bool = Field(True, description="Require candle close beyond structure level. Wick-only breaks rejected.")
+    breakout_require_displacement: bool = Field(True, description="Require measurable displacement candle after BOS.")
+    breakout_displacement_atr_min: float = Field(0.8, description="Minimum breakout candle range / ATR to qualify as displacement.")
+    breakout_min_rr: float = Field(2.0, description="Minimum R:R for breakout trades. Do not lower to increase trade count.")
+    breakout_max_spread_pips: float = Field(3.0, description="Max spread during breakout entry.")
+    breakout_cooldown_seconds: float = Field(300.0, description="Cooldown after a breakout trade before allowing another on same BOS level.")
+    breakout_sl_method: str = Field("protected_swing", description="SL reference for breakout: 'breakout_candle' | 'protected_swing' | 'displacement_origin'.")
+    breakout_regime_filter: bool = Field(True, description="Apply regime filter: EXHAUSTION regime rejects breakout, others evaluated by config.")
+    breakout_regime_allowed: str = Field("TRENDING,COMPRESSION,RANGE", description="Comma-separated regimes that allow breakout trades.")
+
+    # ── HTF Cache Fix (Fixes zone-wait paralysis) ──────────────────────────────
+    htf_cache_expiry_minutes: float = Field(15.0, description="HTF fingerprint cache expiry. 0 = no cache. Fixes the issue where HOLD is returned indefinitely when HTF data unchanged.")
+
+    # ── Kill Zone Priority ─────────────────────────────────────────────────────
+    kill_zone_priority_bonus: float = Field(0.10, description="Confluence bonus for setups that occur during London/NY kill zones.")
+    london_kill_zone_start: str = Field("07:00", description="London kill zone start UTC.")
+    london_kill_zone_end: str = Field("09:00", description="London kill zone end UTC.")
+    ny_kill_zone_start: str = Field("12:00", description="NY kill zone start UTC.")
+    ny_kill_zone_end: str = Field("14:00", description="NY kill zone end UTC.")
+    asian_kill_zone_start: str = Field("00:00", description="Asian kill zone start UTC.")
+    asian_kill_zone_end: str = Field("03:00", description="Asian kill zone end UTC.")
 
     # ── Analysis Engine ────────────────────────────────────────────────────────
     confluence_llm_threshold: float = Field(0.60, description="Minimum confluence score to call LLM analysis")
@@ -87,8 +128,8 @@ class Settings(BaseSettings):
     require_candle_close_confirmation: bool = Field(True, description="Only enter trades when the 1M candle has just closed (within first 25s of new candle). Prevents mid-candle wick entries.")
     candle_close_window_seconds: int = Field(25, description="Max allowed seconds into new 1M candle for entry execution (default 25s)")
     progressive_breakeven: bool = Field(True, description="Enable progressive profit-locking SL ratchet instead of single-step breakeven")
-    breakeven_trigger_r: float = Field(0.5, description="Trigger first breakeven at this R-multiple (e.g., 0.5 = +0.5R)")
-    profit_lock_steps: str = Field("0.5:0.0,1.0:0.25,1.5:0.5,2.0:1.0,2.5:1.5", description="Progressive SL steps as 'trigger_R:lock_R' pairs")
+    breakeven_trigger_r: float = Field(0.25, description="Trigger first breakeven at this R-multiple (e.g., 0.25 = +0.25R)")
+    profit_lock_steps: str = Field("0.25:0.0,0.5:0.1,1.0:0.25,1.5:0.5,2.0:1.0,2.5:1.5", description="Progressive SL steps as 'trigger_R:lock_R' pairs")
     target_open_pnl_cutoff: float = Field(0.0, description="Target total open PnL cutoff USD to close all positions to lock profit")
     protect_trade1_on_trade2: bool = Field(True, description="Move Trade 1 to breakeven when Trade 2 is opened")
     require_candle_close_confirm: bool = Field(True, description="Only enter trade on candle close confirmation")
@@ -108,13 +149,19 @@ class Settings(BaseSettings):
     scalping_target_profit_usd: float = Field(1.0, description="Take profit target in USD for the base lot size (0.01 lots)")
     scalping_sl_usd: float = Field(4.5, description="Stop loss in USD for the base lot size (0.01 lots) — allows buffer beyond OB")
 
-    # ── Auto-Execute Scalping Mode ────────────────────────────────────────────
+    # ── Auto-Execute Scalping Mode (R-multiple based — NOT dollar based) ────────
     auto_scalp_mode: bool = Field(False, description="Enable fully autonomous scalp execution — LLM opens/closes trades every cycle")
     auto_scalp_cycle_minutes: int = Field(3, description="Cycle interval in minutes for auto-scalp mode (default: 3)")
     auto_scalp_max_trades: int = Field(2, description="Hard cap on concurrent open positions in auto-scalp mode (cannot exceed 2)")
-    auto_scalp_sl_usd: float = Field(4.5, description="Fixed stop loss in USD per 0.01 lot — allows buffer beyond OB")
-    auto_scalp_tp_usd: float = Field(1.0, description="Fixed take profit in USD per 0.01 lot — always overrides LLM output")
+    # R-multiple based SL/TP (replaces broken dollar-based values)
+    auto_scalp_sl_atr_multiplier: float = Field(0.5, description="Auto-scalp SL = entry ± (ATR × this). Default 0.5. Backtested value.")
+    auto_scalp_tp1_r: float = Field(0.8, description="Auto-scalp TP1 = entry + (sl_dist × this R multiple). Default 0.8R.")
+    auto_scalp_tp2_r: float = Field(1.5, description="Auto-scalp TP2 = entry + (sl_dist × this R multiple). Default 1.5R.")
+    auto_scalp_min_rr: float = Field(1.2, description="Auto-scalp minimum acceptable R:R ratio.")
     auto_scalp_use_vision: bool = Field(False, description="Enable vision screenshots during auto-scalp cycles (default False for maximum execution speed)")
+    # Legacy dollar-based fields kept for backward compat — NOT used by the new pipeline
+    auto_scalp_sl_usd: float = Field(4.5, description="DEPRECATED: legacy dollar-based SL. Not used by new auto_scalp_strategy.")
+    auto_scalp_tp_usd: float = Field(1.0, description="DEPRECATED: legacy dollar-based TP. Not used by new auto_scalp_strategy.")
 
     # ── Pro Trader Mode (4-Timeframe SMC) ──────────────────────────────────────
     pro_trader_mode: bool = Field(True, description="Enable 4-Timeframe SMC Pro Trader Mode (4H, 1H, 15M, 1M)")
@@ -126,9 +173,21 @@ class Settings(BaseSettings):
     max_vision_failures: int = Field(2, description="Max consecutive vision failures before pausing vision")
     disable_vision_fallback: bool = Field(False, description="If True, vision analysis is strictly preserved and never falls back to text-only mode")
 
+    # ── Breakout / Retest Detection ─────────────────────────────────────────
+    breakout_retest_enabled: bool = Field(True, description="Enable breakout→displacement→fallback→retest→continuation detection")
+    breakout_min_displacement_atr: float = Field(0.8, description="Min candle body / ATR ratio to qualify as displacement")
+    breakout_retest_tolerance_atr: float = Field(0.3, description="Retest zone tolerance: level ± (ATR * this value)")
+    breakout_max_age_bars_15m: int = Field(40, description="Max 15M bars before a breakout setup expires")
+    breakout_max_age_bars_1h: int = Field(12, description="Max 1H bars before a breakout setup expires")
+    breakout_max_distance_atr: float = Field(3.0, description="Max distance from broken level (in ATR) to still be 'waiting for retest'")
+    breakout_min_rejection_body_ratio: float = Field(0.4, description="Min body/range ratio for a rejection candle")
+    breakout_max_retest_depth_atr: float = Field(1.0, description="Max penetration past broken level before setup is invalidated")
+    breakout_require_m1_confirmation: bool = Field(True, description="Require M1 MSS/BOS/rejection candle before ENTRY_READY")
+    breakout_max_active_setups: int = Field(3, description="Max concurrent breakout setups tracked per symbol")
+
     # ── Scheduler ─────────────────────────────────────────────────────────────
     trade_cycle_minutes: int = 5
-    position_poll_seconds: int = 5
+    position_poll_seconds: int = 1
 
     # ── Sessions (UTC, "HH:MM") ───────────────────────────────────────────────
     enforce_session_hours: bool = Field(False, description="When False (default for 24/5 XAUUSD), trades 24 hours Mon-Fri including Asian session. Set True to strictly enforce London/NY hours.")
@@ -138,6 +197,14 @@ class Settings(BaseSettings):
     london_session_end: str = "16:00"
     ny_session_start: str = "12:00"
     ny_session_end: str = "21:00"
+
+    # ── Breakout & Retest Engine ─────────────────────────────────────────────
+    breakout_retest_enabled: bool = True
+    breakout_min_displacement_atr: float = 0.8
+    breakout_retest_tolerance_atr: float = 0.3
+    breakout_max_age_bars_15m: int = 40
+    breakout_max_distance_atr: float = 3.0
+    breakout_min_rejection_body_ratio: float = 0.4
 
     # ── Telegram ──────────────────────────────────────────────────────────────
     telegram_bot_token: str = ""
@@ -169,6 +236,34 @@ class Settings(BaseSettings):
         if not 0.0 <= v <= 1.0:
             raise ValueError("MIN_CONFIDENCE must be between 0.0 and 1.0")
         return v
+
+    @field_validator("trading_strategy_mode")
+    @classmethod
+    def validate_strategy_mode(cls, v: str) -> str:
+        """Validates comma-separated strategy modes. Supports SMC, ICT, SCALP, BREAKOUT."""
+        valid_modes = {"SMC", "ICT", "SCALP", "BREAKOUT"}
+        parts = [p.strip().upper() for p in v.split(",") if p.strip()]
+        if not parts:
+            raise ValueError("TRADING_STRATEGY_MODE must contain at least one mode")
+        invalid = [p for p in parts if p not in valid_modes]
+        if invalid:
+            raise ValueError(
+                f"TRADING_STRATEGY_MODE: unknown modes {invalid}. Valid: {sorted(valid_modes)}"
+            )
+        return ",".join(parts)
+
+    @property
+    def active_strategy_modes(self) -> list[str]:
+        """Return list of active strategy modes from comma-separated config."""
+        return [p.strip().upper() for p in self.trading_strategy_mode.split(",") if p.strip()]
+
+    @property
+    def is_live(self) -> bool:
+        return self.trading_environment.upper() == "LIVE"
+
+    @property
+    def breakout_regime_list(self) -> list[str]:
+        return [r.strip().upper() for r in self.breakout_regime_allowed.split(",") if r.strip()]
 
 
 @lru_cache(maxsize=1)

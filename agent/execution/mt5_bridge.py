@@ -313,7 +313,13 @@ class MT5Bridge:
                     logger.info(f"✅ Remote Position {ticket} closed successfully")
                     return True
                 else:
-                    logger.error(f"Failed to close remote position {ticket}: {response.text}")
+                    if "10027" in response.text or "autotrading disabled" in response.text.lower():
+                        logger.warning(
+                            f"⚠️ Position #{ticket}: AutoTrading disabled by client (10027). "
+                            f"Enable AutoTrading in MT5 terminal. Retries suppressed."
+                        )
+                    else:
+                        logger.error(f"Failed to close remote position {ticket}: {response.text}")
                     return False
             except Exception as exc:
                 logger.error(f"Remote position close exception: {exc}")
